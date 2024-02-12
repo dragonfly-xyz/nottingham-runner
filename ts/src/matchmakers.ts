@@ -1,5 +1,6 @@
 import { Address } from "viem";
 import { Prng } from "./prng";
+import oskill, { ordinal } from "openskill";
 
 export interface ScoredPlayer {
     address: Address;
@@ -10,17 +11,13 @@ export interface MatchMaker {
     isDone(): boolean;
     getNextMatch(): string[];
     getScores(): ScoredPlayer[];
-    rankMatchResults(orderedPlayers: string[]): void;
+    rankMatchResult(orderedPlayers: string[]): void;
 }
 
 interface PlayerRankingInfo {
     matchCount: number;
     mu: number;
     sigma: number;
-}
-
-interface PlayerRankings {
-    [id: string]: PlayerRankingInfo;
 }
 
 const EMPTY_PLAYER_RANKING_INFO: PlayerRankingInfo = {
@@ -32,17 +29,57 @@ const EMPTY_PLAYER_RANKING_INFO: PlayerRankingInfo = {
 const MIN_MATCH_SEATS = 3;
 const MAX_MATCH_SEATS = 5;
 
-function createEmptyPlayerRankings(players: string[]): PlayerRankings {
-    return Object.assign(
-        {},
-        ...players.map(id => ({ [id]: { ...EMPTY_PLAYER_RANKING_INFO } })),
-    );
-}
-
 function getScoresFromPlayerRankings(rankings: PlayerRankings): ScoredPlayer[] {
     return Object.entries(rankings)
-        .map(([id, info]) => ({ address: id as Address, score: info.mu }))
+        .map(([id, info]) => ({ address: id as Address, score: oskill.ordinal(info) }))
         .sort((a, b) => b.score - a.score);
+}
+
+class PlayerRankings {
+    private readonly _ids: string[];
+    private _scoresById: { [id: string]: PlayerRankingInfo };
+    
+    public constructor(ids: string[]) {
+        this._ids = ids.slice().sort((a, b) => a.localeCompare(b));
+        this._scoresById = Object.assign(
+            {},
+            ...ids.map(id => ({ [id]: {... EMPTY_PLAYER_RANKING_INFO } })),
+        );
+    }
+
+    public isId(id: string): boolean {
+        return id in this._scoresById;
+    }
+
+    public getConfidence(id: string): number {
+        // TODO: range?
+        return Math.max(1 - this._scoresById[id].sigma);
+    }
+
+    public getMatchCount(id: string): number {
+        return this._scoresById[id].matchCount;
+    }
+
+    public getScore(id: string): number {
+        return ordinal(this._scoresById[id]);
+    }
+
+    public get ids(): string[] {
+        return this._ids;
+    }
+
+    public rankMatchResult(ids: string[]): void {
+        const infos = ids.map(id => this._scoresById[id]);
+        if (!infos.every(info => !!info)) {
+            throw new Error('Player ID not found in rankings');
+        }
+        const changes = oskill.rate(infos.map(i => [{ sigma: i.sigma, mu: i.mu }])).flat(1);
+        for (let i = 0; i < infos.length; ++i) {
+            ++infos[i].matchCount;
+            infos[i].mu = changes[i].mu;
+            infos[i].sigma = changes[i].sigma;
+        }
+    }
 }
 
 export type ScrimmageMatchMakerConfig = {
@@ -72,37 +109,60 @@ export class ScrimmageMatchMaker implements MatchMaker {
         this._prng = new Prng(cfg.seed);
         this._targetConfidence = cfg.targetConfidence;
         this._minMatchesPerPlayer = cfg.minMatchesPerPlayer;
-        this._rankings = cfg.rankings ?? createEmptyPlayerRankings(cfg.players);
+        this._rankings = cfg.rankings ?? new PlayerRankings(cfg.players);
     }
 
     public getNextMatch(): string[] {
-        const playerIds = Object.keys(this._rankings)
-            .filter(id =>
-                this._rankings[id].matchCount < this._maxMatchesPerPlayer &&
-                this._rankings[id].sigma < this._targetConfidence
-            );
-        const playerIds = this._getPlayerPool();
-        const playerWeights = playerIds.map(id => this._rankings[id].sigma);
-        return this._prng.sampleWeighted(playerWeights, Math.min())
-        return [];
+        const playerIds = this._getEligiblePlayers();
+        if (playerIds.length === 0) {
+            return [];
+        }
+        const playerWeights = playerIds
+            // TODO: Find sigma upperbound or use logarithmic transformation.
+            .map(id => Math.max(Math.min(this._rankings[id].sigma, 100), 0));
+        return this._prng
+            .sampleWeighted(playerWeights, Math.max(MAX_MATCH_SEATS))
+            .map(idx => playerIds[idx]);
     }
 
-    private _getPlayerPool(): string[] {
-        const playerIds = Object.keys(this._rankings)
-            .filter(id =>
-                this._rankings[id].matchCount < this._maxMatchesPerPlayer &&
-                this._rankings[id].sigma < this._targetConfidence
-            );
-        if (playerIds)
+    private _isEligible(id: string): boolean {
+        let isEligible = false;
+        const confidence = this._rankings.getConfidence(id);
+        const matchCount = this._rankings.getMatchCount(id);
+        if (confidence < this._targetConfidence || matchCount < this._minMatchesPerPlayer) {
+            isEligible = true;
+        } else if (confidence >= this._targetConfidence && matchCount < this._maxMatchesPerPlayer) {
+            isEligible = true;
+        }
+        return isEligible;
     }
 
-    public rankMatchResults(orderedPlayers: string[]): void {
-        // ...
+    private _getEligiblePlayers(): string[] {
+        const eligible = [] as string[];
+        const ineligbile = [] as string[];
+        for (const id of this._rankings.ids) {
+            if (this._isEligible(id)) {
+                eligible.push(id);
+            } else {
+                ineligbile.push(id);
+            }
+        }
+        // If below minimum, pad with ineligible players.
+        if (eligible.length > 0 && eligible.length < MIN_MATCH_SEATS) {
+            ineligbile.sort((a, b) =>
+                this._rankings.getConfidence(b) - this._rankings.getConfidence(a),
+            );
+            eligible.push(...ineligbile.slice(0, MIN_MATCH_SEATS - eligible.length));
+        }
+        return eligible;
+    }
+
+    public rankMatchResult(orderedPlayers: string[]): void {
+        this._rankings.rankMatchResult(orderedPlayers);
     }
 
     public isDone(): boolean {
-        // ...
-        return true;
+        return this._getEligiblePlayers().length == 0;
     }
 
     public getScores(): ScoredPlayer[] {
@@ -129,7 +189,7 @@ export class TournamentMatchMaker implements MatchMaker {
         this._prng = new Prng(cfg.seed);
         this._eliteConfidence = cfg.eliteConfidence;
         this._eliteCount = cfg.eliteCount;
-        this._rankings = cfg.rankings ?? createEmptyPlayerRankings(cfg.players);
+        this._rankings = cfg.rankings ?? new PlayerRankings(cfg.players);
         this._scrimmage = new ScrimmageMatchMaker(cfg);
     }
 
@@ -138,7 +198,7 @@ export class TournamentMatchMaker implements MatchMaker {
         return [];
     }
 
-    public rankMatchResults(orderedPlayers: string[]): void {
+    public rankMatchResult(orderedPlayers: string[]): void {
         // ...
     }
 

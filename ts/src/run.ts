@@ -44,9 +44,6 @@ async function playMatch(
     return [];
 }
 
-const MIN_MATCH_SEATS = 3;
-const MAX_MATCH_SEATS = 5;
-
 const SCRIMMAGE_MATCHMAKER_CONFIG = {
     targetConfidence: 0.66,
     minMatchesPerPlayer: 10,
@@ -96,8 +93,7 @@ async function runTournament(cfg: TournamentConfig) {
                 ...matchPlayers.map(p => ({ [p]: playerCodes[p] })),
             ),
         );
-        console.log(matchResults);
-        mm.rankMatchResults(matchResults);
+        mm.rankMatchResult(matchResults);
     }
     const nextSeasonIdx = season.idx + 1;
     await contest.beginNewSeason(

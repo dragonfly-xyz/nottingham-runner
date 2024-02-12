@@ -15,6 +15,7 @@ import {
     checksumAddress,
 } from "viem";
 import { zkSync } from "viem/chains";
+import { privateKeyToAccount } from "viem/accounts";
 import { decryptByteCode } from "./decrypt";
 
 const EVENTS = CONTEST_ABI.filter(e => e.type === 'event') as AbiEvent[]
@@ -56,7 +57,7 @@ export class Contest {
         // HACK: Makes TS autocomplete painfully slow without `any`.
         this._readClient = (createPublicClient as any)({ transport });
         this._wallet = createWalletClient({
-            key: process.env.PRIVATE_KEY || zeroHash,
+            key: process.env.HOST_PRIVATE_KEY || zeroHash,
             transport,
             chain: zkSync,
         });
@@ -87,11 +88,22 @@ export class Contest {
     public async getSeasonKeys(seasonIdx: number):
         Promise<{ publicKey: Hex | null, privateKey: Hex | null }>
     {
-        const { publicKey, privateKey } = await this._readClient.readContract({
+        let { publicKey, privateKey } = await this._readClient.readContract({
             abi: CONTEST_ABI,
             address: this.address,
             functionName: 'getSeasonKeys',
+            args: [seasonIdx],
         }) as { publicKey: Hex, privateKey: Hex };
+        if (publicKey === zeroHash || privateKey === zeroHash) {
+            const seasonKeys = (process.env?.SEASON_PRIVATE_KEYS ?? '')
+                .split(',')
+                .filter(s => s) as Hex[];
+            if (seasonKeys.length > seasonIdx) {
+                privateKey = seasonKeys[seasonIdx];
+                const acct = privateKeyToAccount(privateKey);
+                publicKey = acct.publicKey;
+            }
+        }
         return {
             publicKey: publicKey === zeroHash ? null : publicKey,
             privateKey: privateKey === zeroHash ? null : privateKey,
@@ -102,7 +114,7 @@ export class Contest {
         : Promise<{ [address: Address]: Hex }>
     {
         if (!seasonInfo.privateKey) {
-            throw new Error(`Season ${seasonInfo.idx} not yet closed!`);
+            throw new Error(`No private key for season ${seasonInfo.idx}.`);
         }
         const events = (await Promise.all([
             this._readClient.getLogs({
