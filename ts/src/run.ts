@@ -7,8 +7,10 @@ import {
     Hex,
     Address,
 } from "viem";
-import { Contest } from "./contest";
-import { MatchMaker, ScrimmageMatchMaker, TournamentMatchMaker } from "./matchmakers";
+import { Contest } from "./contest.js";
+import { MatchMaker, ScrimmageMatchMaker, TournamentMatchMaker } from "./matchmakers.js";
+import { NodeCluster } from "./node-cluster.js";
+import { MatchJob, PlayerScore } from "./match.js";
 
 yargs(process.argv.slice(0)).command(
     '$0', 'run a tournament on the current (closed) season',
@@ -34,14 +36,6 @@ interface TournamentConfig {
     address: Address;
     seasonKeys: Hex[];
     mode: MatchMakingMode;
-}
-
-async function playMatch(
-    season: SeasonInfo,
-    players: PlayerInfo[],
-): Promise<string[]> {
-    // ...
-    return [];
 }
 
 const SCRIMMAGE_MATCHMAKER_CONFIG = {
@@ -70,6 +64,7 @@ async function runTournament(cfg: TournamentConfig) {
         throw new Error('Season still open.');
     }
     const playerCodes = await contest.getActivePlayersForSeason(season);
+    const cluster = await NodeCluster.create();
     let mm: MatchMaker;
     if (cfg.mode == MatchMakingMode.Tournament) {
         mm = new TournamentMatchMaker({
@@ -85,15 +80,34 @@ async function runTournament(cfg: TournamentConfig) {
         })
     }
     while (!mm.isDone()) {
-        const matchPlayers = mm.getNextMatch();
-        const matchResults = await playMatch(
-            season,
-            Object.assign(
-                {},
-                ...matchPlayers.map(p => ({ [p]: playerCodes[p] })),
-            ),
-        );
-        mm.rankMatchResult(matchResults);
+        const matchResults = [] as Array<PlayerScore[]>;
+        const matchPromises = [] as Array<Promise<PlayerScore[]>>;
+        while (cluster.queueSize < 10) {
+            const matchPlayers = mm.getNextMatch();
+            if (matchPlayers.length === 0) {
+                break;
+            }
+            const p = cluster.run(new MatchJob(
+                season.privateKey,
+                matchPlayers.map(id => ({ id, bytecode: playerCodes[id] })),
+            ));
+            p.then(r => {
+                matchPromises.splice(matchPromises.indexOf(p), 1);
+                matchResults.push(r);
+            }).catch(err => console.warn(`Match with ${matchPlayers} failed: ${err}`));
+            matchPromises.push(p);
+        }
+        try {
+            await Promise.race(matchPromises);
+        } catch (err) {
+            console.warn(err);
+        }
+        if (matchResults.length === 5 || cluster.queueSize === 0) {
+            for (const r of matchResults) {
+                mm.rankMatchResult(r.map(s => s.id));
+            }
+            matchResults.splice(0, matchResults.length);
+        }
     }
     const nextSeasonIdx = season.idx + 1;
     await contest.beginNewSeason(

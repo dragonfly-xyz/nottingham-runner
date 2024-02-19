@@ -1,7 +1,8 @@
 import process from "process";
-import * as CONTEST_ABI from "../../abis/Contest.json";
+import CONTEST_ABI from "../../artifacts/Contest.abi.json";
 import { AbiEvent } from "abitype";
 import {
+    Abi,
     zeroHash,
     Hex,
     Address,
@@ -13,10 +14,11 @@ import {
     decodeEventLog,
     DecodeEventLogReturnType,
     checksumAddress,
+    keccak256,
 } from "viem";
-import { zkSync } from "viem/chains";
+// import { zkSync } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
-import { decryptByteCode } from "./decrypt";
+import { Decrypter } from "./decrypt.js";
 
 const EVENTS = CONTEST_ABI.filter(e => e.type === 'event') as AbiEvent[]
 const RETIRED_EVENT = EVENTS.find(e => e.name === 'Retired');
@@ -27,6 +29,7 @@ interface CodeCommittedEvent extends DecodeEventLogReturnType {
     args: readonly unknown[] & {
         season: bigint;
         player: Address;
+        codeHash: Hex;
         encryptedCode: Hex;
     };
 }
@@ -50,17 +53,19 @@ export interface SeasonInfo {
 
 export class Contest {
     private _readClient: PublicClient; 
-    private _wallet: WalletClient;
+    private _wallet?: WalletClient;
 
     public constructor(public readonly address: Address) {
         const transport = http(process.env.RPC_URL, { retryCount: 2 });
         // HACK: Makes TS autocomplete painfully slow without `any`.
         this._readClient = (createPublicClient as any)({ transport });
-        this._wallet = createWalletClient({
-            key: process.env.HOST_PRIVATE_KEY || zeroHash,
-            transport,
-            chain: zkSync,
-        });
+        if (process.env.HOST_PRIVATE_KEY) {
+            this._wallet = createWalletClient({
+                key: process.env.HOST_PRIVATE_KEY || zeroHash,
+                transport,
+                // chain: zkSync,
+            });
+        }
     }
 
     public async getSeasonInfo(seasonIdx: number): Promise<SeasonInfo> {
@@ -82,6 +87,7 @@ export class Contest {
             abi: CONTEST_ABI,
             address: this.address,
             functionName: 'currentSeasonIdx',
+            args: [],
         }) as bigint);
     }
 
@@ -116,6 +122,7 @@ export class Contest {
         if (!seasonInfo.privateKey) {
             throw new Error(`No private key for season ${seasonInfo.idx}.`);
         }
+        const decrypter = new Decrypter(seasonInfo.privateKey);
         const events = (await Promise.all([
             this._readClient.getLogs({
                 address: this.address,
@@ -140,10 +147,13 @@ export class Contest {
                 }
             } else {
                 if (!commits[addr]) {
-                    commits[addr] = decryptByteCode(
-                        decoded.args.encryptedCode,
-                        seasonInfo.privateKey,
-                    );
+                    const bytecode = decrypter.decrypt(decoded.args.encryptedCode);
+                    if (keccak256(bytecode) !== decoded.args.encryptedCode) {
+                        console.warn(`Player ${addr} provided invalid code hash.`);
+                        delete commits[addr];
+                    } else {
+                        commits[addr] = bytecode;
+                    }
                 }
             }
         }

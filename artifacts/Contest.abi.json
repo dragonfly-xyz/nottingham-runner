@@ -157,6 +157,49 @@
   },
   {
     "type": "function",
+    "name": "getSeasonKeys",
+    "inputs": [
+      {
+        "name": "seasonIdx",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "publicKey",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "privateKey",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getSeasonPlayerCodeCount",
+    "inputs": [
+      {
+        "name": "seasonIdx",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "playerCount_",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "getWinner",
     "inputs": [
       {
@@ -310,6 +353,11 @@
         "internalType": "uint32"
       },
       {
+        "name": "codeHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
         "name": "encryptedCode",
         "type": "bytes",
         "internalType": "bytes"
@@ -346,6 +394,12 @@
         "type": "address",
         "indexed": true,
         "internalType": "address"
+      },
+      {
+        "name": "codeHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
       },
       {
         "name": "encryptedCode",
@@ -508,6 +562,11 @@
   {
     "type": "error",
     "name": "NotWinnerError",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "PlayerCodeSizeError",
     "inputs": []
   },
   {

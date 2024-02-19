@@ -1,13 +1,14 @@
 {
     "compilerOptions": {
-        "module": "Node16",
-        "moduleResolution": "Node16",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
         "allowJs": false,
-        "alwaysStrict": true,
         "sourceMap": true,
         "outDir": "js",
-        "resolveJsonModule": true,
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true,
         "skipLibCheck": true,
+        "resolveJsonModule": true,
     },
-    "include": ["src/**.ts"]
+    "include": ["src/**.ts", "test/**.t.ts"]
 }

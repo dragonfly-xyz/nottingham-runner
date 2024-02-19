@@ -32,7 +32,7 @@ export class Prng {
         if (weights.length === 0) {
             throw new Error('Empty array to pickWeighted()');
         }
-        const accWeights = weights.reduce((acc, w, i) => [...acc, w + acc[i - 1] ?? 0], []);
+        const accWeights = weights.reduce((acc, w, i) => [...acc, w + (acc[i - 1] ?? 0)], []);
         const total = weights = accWeights[accWeights.length - 1] ?? 0;
         const needle = Math.floor(this.uniformRange(0, total));
         return accWeights.findIndex((s => s > needle));
