@@ -20,15 +20,26 @@ export interface PlayerInfo {
 
 export type Logger = (name: string, data?: { [key: string]: any }) => void;
 
+export interface MatchResult {
+    scores: PlayerScore[];
+}
+
 export interface PlayerScore {
     id: string;
     score: number;
+}
+
+interface RoundResult {
+    isGameOver: boolean;
+    timeTaken: number;
+    playerGasUsage: number[];
 }
 
 type GameCreatedEventArgs = LogEventHandlerData<{ game: Address; }>;
 type CreatePlayerFailedEventArgs = LogEventHandlerData<{ playerIdx: Address; }>;
 type RoundPlayedEventArgs = LogEventHandlerData<{ round: number; }>;
 type GameOverEventArgs = LogEventHandlerData<{ rounds: number; winnerIdx: number; }>;
+type PlayerBlockUsageGasUsageEventArgs = LogEventHandlerData<{ builderIdx: number; gasUsed: number; }>;
 
 const DEFAULT_LOGGER: Logger = (name, data) => {
     if (data) {
@@ -38,7 +49,7 @@ const DEFAULT_LOGGER: Logger = (name, data) => {
     }
 };
 
-export class MatchJob implements NodeJob<PlayerScore[]> {
+export class MatchJob implements NodeJob<MatchResult> {
     private _isCanceled = false;
     private _gameAddress?: Address; 
     private _client?: PublicClient;
@@ -55,7 +66,7 @@ export class MatchJob implements NodeJob<PlayerScore[]> {
         this._isCanceled = true;
     }
 
-    public async run(node: NodeInfo): Promise<PlayerScore[]> {
+    public async run(node: NodeInfo): Promise<MatchResult> {
         this._client = node.client;
         this._wallet = node.wallet;
         this._gasLimit = node.blockGasLimit;
@@ -64,12 +75,12 @@ export class MatchJob implements NodeJob<PlayerScore[]> {
             if (this._isCanceled) {
                 throw new Error(`Match cancelled`);
             }
-            const isGameOver = await this._playRound();
-            if (isGameOver) break;
+            const roundResult = await this._playRound();
+            if (roundResult.isGameOver) break;
         }
         const scores = await this._getScores();
         this.logger('game_over', { scores });
-        return scores;
+        return { scores };
     }
 
     private async _deployGame(): Promise<Address> {
@@ -115,7 +126,8 @@ export class MatchJob implements NodeJob<PlayerScore[]> {
         }
     }
 
-    private async _playRound(): Promise<boolean> {
+    private async _playRound(): Promise<RoundResult> {
+        let timeTaken = Date.now();
         const receipt = await waitForSuccessfulReceipt(
             this._client!,
             await (this._wallet.writeContract as any)({
@@ -127,16 +139,21 @@ export class MatchJob implements NodeJob<PlayerScore[]> {
                 gasPrice: 0,
             }),
         );
+        timeTaken = Date.now() - timeTaken;
         let isGameOver = false;
+        const playerGasUsage = this.players.map(() => 0);
         this._handleGameEvents(receipt.logs,
             {
                 'RoundPlayed': ({ args: { round } }: RoundPlayedEventArgs) => {
                     this.logger('round_played', { round, gas: Number(receipt.gasUsed) });
                 },
-                'GameOver': (_: GameOverEventArgs) => { isGameOver = true; }
+                'GameOver': (_: GameOverEventArgs) => { isGameOver = true; },
+                'PlayerBlockGasUsage':
+                    ({ args: { builderIdx, gasUsed } }: PlayerBlockUsageGasUsageEventArgs) =>
+                        { playerGasUsage[builderIdx] = gasUsed; },
             }
         );
-        return isGameOver;
+        return { isGameOver, playerGasUsage, timeTaken };
     }
 
     private async _getScores(): Promise<PlayerScore[]> {

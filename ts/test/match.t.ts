@@ -35,7 +35,7 @@ describe('match tests', () => {
                 }
             },
         );
-        const scores = await node.run(job);
+        const { scores } = await node.run(job);
         expect(gameOverLogData?.scores?.length).to.eq(3);
         expect(scores.map(s => s.id)).to.deep.eq(['a','b','c']);
     });
@@ -55,7 +55,7 @@ describe('match tests', () => {
                 }
             },
         );
-        const scores = await node.run(job);
+        const { scores } = await node.run(job);
         expect(scores.map(s => s.id)).to.deep.eq(['a', 'b']);
         expect(failedDeploys).to.deep.eq(['b']);
     });
@@ -70,7 +70,7 @@ describe('match tests', () => {
             ],
             () => {},
         );
-        const scores = await node.run(job);
+        const { scores } = await node.run(job);
         expect(scores.map(s => s.id)).to.deep.eq(['a', 'b']);
     });
 
@@ -92,7 +92,7 @@ describe('match tests', () => {
                 }
             },
         );
-        const scores = await node.run(job);
+        const { scores } = await node.run(job);
         expect(gameOverLogData?.scores?.length).to.eq(3);
         expect(scores.map(s => s.id)).to.deep.eq(['a', 'b', 'c']);
     });

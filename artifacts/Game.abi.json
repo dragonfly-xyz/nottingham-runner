@@ -145,6 +145,25 @@
   },
   {
     "type": "function",
+    "name": "gasUsedByPlayer",
+    "inputs": [
+      {
+        "name": "playerIdx",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "totalGasUsedByPlayer",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "grantTurn",
     "inputs": [
       {
@@ -193,11 +212,6 @@
     "name": "playRound",
     "inputs": [],
     "outputs": [
-      {
-        "name": "isGameOver_",
-        "type": "bool",
-        "internalType": "bool"
-      },
       {
         "name": "winnerIdx",
         "type": "uint8",
@@ -336,29 +350,6 @@
         "internalType": "uint256"
       }
     ],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "transfer",
-    "inputs": [
-      {
-        "name": "toPlayerIdx",
-        "type": "uint8",
-        "internalType": "uint8"
-      },
-      {
-        "name": "assetIdx",
-        "type": "uint8",
-        "internalType": "uint8"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [],
     "stateMutability": "nonpayable"
   },
   {
@@ -509,7 +500,26 @@
   },
   {
     "type": "event",
-    "name": "PlayerTurnFailedWarning",
+    "name": "PlayerBlockGasUsage",
+    "inputs": [
+      {
+        "name": "builderIdx",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "gasUsed",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PlayerTurnFailed",
     "inputs": [
       {
         "name": "playerIdx",
@@ -522,6 +532,19 @@
         "type": "bytes",
         "indexed": false,
         "internalType": "bytes"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PlayerTurnSuccess",
+    "inputs": [
+      {
+        "name": "playerIdx",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
       }
     ],
     "anonymous": false
@@ -569,37 +592,6 @@
       },
       {
         "name": "toAmount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "Transfer",
-    "inputs": [
-      {
-        "name": "fromPlayerIdx",
-        "type": "uint8",
-        "indexed": true,
-        "internalType": "uint8"
-      },
-      {
-        "name": "toPlayerIdx",
-        "type": "uint8",
-        "indexed": true,
-        "internalType": "uint8"
-      },
-      {
-        "name": "assetIdx",
-        "type": "uint8",
-        "indexed": true,
-        "internalType": "uint8"
-      },
-      {
-        "name": "assetAmount",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -678,6 +670,11 @@
   {
     "type": "error",
     "name": "MaxLiquidityError",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "MinGasError",
     "inputs": []
   },
   {

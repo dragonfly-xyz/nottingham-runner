@@ -9,7 +9,7 @@ import {
 } from "viem";
 import { foundry } from "viem/chains";
 
-const BLOCK_GAS_LIMIT = 128e9;
+const BLOCK_GAS_LIMIT = 32e9;
 const MAX_CODE_SIZE = 0x8000;
 
 export interface NodeInfo {
@@ -52,7 +52,7 @@ export class EvmNode {
         });
         proc.removeAllListeners();
         proc.stdout.removeAllListeners();
-        const transport = http(`http://127.0.0.1:${port}`);
+        const transport = http(`http://127.0.0.1:${port}`, { timeout: 30e3 });
         const wallet = createWalletClient({
             transport,
             chain: foundry,

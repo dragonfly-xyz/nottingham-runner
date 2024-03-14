@@ -10,7 +10,7 @@ import {
 import { Contest } from "./contest.js";
 import { MatchMaker, ScrimmageMatchMaker, TournamentMatchMaker } from "./matchmakers.js";
 import { NodeCluster } from "./node-cluster.js";
-import { MatchJob, PlayerScore } from "./match.js";
+import { MatchJob, MatchResult, PlayerScore } from "./match.js";
 
 yargs(process.argv.slice(0)).command(
     '$0', 'run a tournament on the current (closed) season',
@@ -81,7 +81,7 @@ async function runTournament(cfg: TournamentConfig) {
     }
     while (!mm.isDone()) {
         const matchResults = [] as Array<PlayerScore[]>;
-        const matchPromises = [] as Array<Promise<PlayerScore[]>>;
+        const matchPromises = [] as Array<Promise<MatchResult>>;
         while (cluster.queueSize < 10) {
             const matchPlayers = mm.getNextMatch();
             if (matchPlayers.length === 0) {
@@ -93,7 +93,7 @@ async function runTournament(cfg: TournamentConfig) {
             ));
             p.then(r => {
                 matchPromises.splice(matchPromises.indexOf(p), 1);
-                matchResults.push(r);
+                matchResults.push(r.scores);
             }).catch(err => console.warn(`Match with ${matchPlayers} failed: ${err}`));
             matchPromises.push(p);
         }
