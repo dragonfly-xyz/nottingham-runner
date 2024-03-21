@@ -35,11 +35,28 @@ interface RoundResult {
     playerGasUsage: number[];
 }
 
+interface PlayerBundleEventParam {
+    fromAssetIdx: number;
+    toAssetIdx: number;
+    fromAmount: bigint;
+    minToAmount: bigint;
+}
+
 type GameCreatedEventArgs = LogEventHandlerData<{ game: Address; }>;
 type CreatePlayerFailedEventArgs = LogEventHandlerData<{ playerIdx: Address; }>;
 type RoundPlayedEventArgs = LogEventHandlerData<{ round: number; }>;
 type GameOverEventArgs = LogEventHandlerData<{ rounds: number; winnerIdx: number; }>;
 type PlayerBlockUsageGasUsageEventArgs = LogEventHandlerData<{ builderIdx: number; gasUsed: number; }>;
+type CreateBundleFailedEventArgs = LogEventHandlerData<{ playerIdx: number; builderIdx: number; revertData: Hex; }>;
+type MintEventArgs = LogEventHandlerData<{ playerIdx: number; assetIdx: number; assetAmount: bigint; }>;
+type BurnEventArgs = LogEventHandlerData<{ playerIdx: number; assetIdx: number; assetAmount: bigint; }>;
+type TransferEventArgs = LogEventHandlerData<{ fromPlayerIdx: number; toPlayerIdx: number; assetIdx: number; assetAmount: bigint; }>;
+type BlockBidEventArgs = LogEventHandlerData<{ builderIdx: number; bid: bigint }>;
+type BlockBuiltEventArgs = LogEventHandlerData<{ round: number; builderIdx: number; bid: bigint }>;
+type EmptyBlockEventArgs = LogEventHandlerData<{ round: number; }>;
+type SwapEventArgs = LogEventHandlerData<{ playerIdx: number; fromAssetIdx: number; toAssetIdx: number; fromAmount: bigint; toAmount: bigint; }>;
+type BundleSettledEventArgs = LogEventHandlerData<{ playerIdx: number; success: boolean; bundle: PlayerBundleEventParam }>;
+
 
 const DEFAULT_LOGGER: Logger = (name, data) => {
     if (data) {
@@ -101,6 +118,7 @@ export class MatchJob implements NodeJob<MatchResult> {
                     name: 'GameCreated',
                     handler: ({ args: { game: game_ } }: GameCreatedEventArgs) => {
                         this._gameAddress = game_;
+                        this.logger('game_created', { players: this.players.map(p => p.id) });
                     },
                     emitter: receipt.contractAddress,
                 },
@@ -112,10 +130,7 @@ export class MatchJob implements NodeJob<MatchResult> {
                 receipt.logs,
                 {
                     'CreatePlayerFailed': ({ args: { playerIdx }}: CreatePlayerFailedEventArgs) => {
-                        this.logger(
-                            'create_player_failed',
-                            { player: this.players[playerIdx].id },
-                        );
+                        this.logger('create_player_failed', { player: this.players[playerIdx].id });
                     }
                 },
             );
@@ -144,13 +159,53 @@ export class MatchJob implements NodeJob<MatchResult> {
         const playerGasUsage = this.players.map(() => 0);
         this._handleGameEvents(receipt.logs,
             {
-                'RoundPlayed': ({ args: { round } }: RoundPlayedEventArgs) => {
-                    this.logger('round_played', { round, gas: Number(receipt.gasUsed) });
-                },
-                'GameOver': (_: GameOverEventArgs) => { isGameOver = true; },
+                'RoundPlayed':
+                    ({ args: { round } }: RoundPlayedEventArgs) => {
+                        this.logger('round_played', { round, gas: Number(receipt.gasUsed) });
+                    },
+                'GameOver':
+                    ({ args: { rounds, winnerIdx } }: GameOverEventArgs) => {
+                        isGameOver = true;
+                        this.logger('game_over', { rounds, winnerIdx, gas: Number(receipt.gasUsed) });
+                    },
                 'PlayerBlockGasUsage':
-                    ({ args: { builderIdx, gasUsed } }: PlayerBlockUsageGasUsageEventArgs) =>
-                        { playerGasUsage[builderIdx] = gasUsed; },
+                    ({ args: { builderIdx, gasUsed } }: PlayerBlockUsageGasUsageEventArgs) => {
+                        playerGasUsage[builderIdx] = gasUsed;
+                    },
+                'Mint':
+                    ({ args: { assetIdx, playerIdx, assetAmount } }: MintEventArgs) => {
+                        this.logger('mint', { playerIdx, assetIdx, assetAmount });
+                    },
+                'Burn':
+                    ({ args: { assetIdx, playerIdx, assetAmount } }: BurnEventArgs) => {
+                        this.logger('burn', { playerIdx, assetIdx, assetAmount });
+                    },
+                'Transfer':
+                    ({ args: { fromPlayerIdx, toPlayerIdx, assetIdx, assetAmount } }: TransferEventArgs) => {
+                        this.logger('transfer', { fromPlayerIdx, toPlayerIdx, assetIdx, assetAmount });
+                    },
+                'Swap':
+                    ({ args: { playerIdx, fromAssetIdx, toAssetIdx, fromAmount, toAmount } }: SwapEventArgs) => {
+                        this.logger('swap', {
+                            playerIdx,
+                            fromAssetIdx,
+                            toAssetIdx,
+                            fromAmount,
+                            toAmount,
+                        });
+                    },
+                'BundleSettled':
+                    ({ args: { playerIdx, success, bundle } }: BundleSettledEventArgs) => {
+                        this.logger('bundle_settled', { playerIdx, success, bundle });
+                    },
+                'BlockBuilt':
+                    ({ args: { builderIdx, bid } }: BlockBuiltEventArgs) => {
+                        this.logger('block_built', { builderIdx, bid });
+                    },
+                'EmptyBlock':
+                    (_: EmptyBlockEventArgs) => {
+                        this.logger('empty_block', {});
+                    },
             }
         );
         return { isGameOver, playerGasUsage, timeTaken };

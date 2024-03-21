@@ -27,7 +27,7 @@ const EMPTY_PLAYER_RANKING_INFO: PlayerRankingInfo = {
 };
 
 const MIN_MATCH_SEATS = 3;
-const MAX_MATCH_SEATS = 5;
+const MAX_MATCH_SEATS = 4;
 
 function getScoresFromPlayerRankings(rankings: PlayerRankings): ScoredPlayer[] {
     return Object.entries(rankings)

@@ -83,6 +83,7 @@ describe('match tests', () => {
                 { id: 'a', bytecode: ETERNAL_PLAYER_BYTECODE },
                 { id: 'b', bytecode: ETERNAL_PLAYER_BYTECODE },
                 { id: 'c', bytecode: ETERNAL_PLAYER_BYTECODE },
+                { id: 'd', bytecode: ETERNAL_PLAYER_BYTECODE },
             ],
             (name, data) => {
                 if (name === 'game_over') {
@@ -93,7 +94,6 @@ describe('match tests', () => {
             },
         );
         const { scores } = await node.run(job);
-        expect(gameOverLogData?.scores?.length).to.eq(3);
-        expect(scores.map(s => s.id)).to.deep.eq(['a', 'b', 'c']);
+        expect(scores.map(s => s.id)).to.deep.eq(['a', 'b', 'c', 'd']);
     });
 });

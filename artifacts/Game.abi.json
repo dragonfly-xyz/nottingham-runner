@@ -27,32 +27,6 @@
   },
   {
     "type": "function",
-    "name": "GM",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "PLAYER_COUNT",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint8",
-        "internalType": "uint8"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "assetCount",
     "inputs": [],
     "outputs": [
@@ -93,9 +67,9 @@
     "name": "buildPlayerBlockAndRevert",
     "inputs": [
       {
-        "name": "builder",
-        "type": "address",
-        "internalType": "contract IPlayer"
+        "name": "builderIdx",
+        "type": "uint8",
+        "internalType": "uint8"
       }
     ],
     "outputs": [],
@@ -145,41 +119,16 @@
   },
   {
     "type": "function",
-    "name": "gasUsedByPlayer",
-    "inputs": [
-      {
-        "name": "playerIdx",
-        "type": "uint8",
-        "internalType": "uint8"
-      }
-    ],
+    "name": "gm",
+    "inputs": [],
     "outputs": [
       {
-        "name": "totalGasUsedByPlayer",
-        "type": "uint256",
-        "internalType": "uint256"
+        "name": "",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "grantTurn",
-    "inputs": [
-      {
-        "name": "playerIdx",
-        "type": "uint8",
-        "internalType": "uint8"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "success",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -190,6 +139,19 @@
         "name": "",
         "type": "bool",
         "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "lastWinningBid",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -219,6 +181,19 @@
       }
     ],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "playerCount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -306,21 +281,117 @@
   },
   {
     "type": "function",
-    "name": "selfBuildPlayerBlock",
+    "name": "selfCallPlayerCreateBundle",
     "inputs": [
       {
-        "name": "builder",
-        "type": "address",
-        "internalType": "contract IPlayer"
+        "name": "playerIdx",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "builderIdx",
+        "type": "uint8",
+        "internalType": "uint8"
       }
     ],
     "outputs": [
       {
-        "name": "bid",
-        "type": "uint256",
-        "internalType": "uint256"
+        "name": "bundle",
+        "type": "tuple",
+        "internalType": "struct PlayerBundle",
+        "components": [
+          {
+            "name": "swaps",
+            "type": "tuple[]",
+            "internalType": "struct SwapSell[]",
+            "components": [
+              {
+                "name": "fromAssetIdx",
+                "type": "uint8",
+                "internalType": "uint8"
+              },
+              {
+                "name": "toAssetIdx",
+                "type": "uint8",
+                "internalType": "uint8"
+              },
+              {
+                "name": "fromAmount",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "minToAmount",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
+          },
+          {
+            "name": "builderGoldTip",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
       }
     ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "selfSettleBundle",
+    "inputs": [
+      {
+        "name": "playerIdx",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "builderIdx",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "bundle",
+        "type": "tuple",
+        "internalType": "struct PlayerBundle",
+        "components": [
+          {
+            "name": "swaps",
+            "type": "tuple[]",
+            "internalType": "struct SwapSell[]",
+            "components": [
+              {
+                "name": "fromAssetIdx",
+                "type": "uint8",
+                "internalType": "uint8"
+              },
+              {
+                "name": "toAssetIdx",
+                "type": "uint8",
+                "internalType": "uint8"
+              },
+              {
+                "name": "fromAmount",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "minToAmount",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
+          },
+          {
+            "name": "builderGoldTip",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "outputs": [],
     "stateMutability": "nonpayable"
   },
   {
@@ -353,13 +424,71 @@
     "stateMutability": "nonpayable"
   },
   {
-    "type": "event",
-    "name": "BlockBid",
+    "type": "function",
+    "name": "settleBundle",
     "inputs": [
       {
         "name": "playerIdx",
         "type": "uint8",
-        "indexed": true,
+        "internalType": "uint8"
+      },
+      {
+        "name": "bundle",
+        "type": "tuple",
+        "internalType": "struct PlayerBundle",
+        "components": [
+          {
+            "name": "swaps",
+            "type": "tuple[]",
+            "internalType": "struct SwapSell[]",
+            "components": [
+              {
+                "name": "fromAssetIdx",
+                "type": "uint8",
+                "internalType": "uint8"
+              },
+              {
+                "name": "toAssetIdx",
+                "type": "uint8",
+                "internalType": "uint8"
+              },
+              {
+                "name": "fromAmount",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "minToAmount",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
+          },
+          {
+            "name": "builderGoldTip",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "success",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "BlockBid",
+    "inputs": [
+      {
+        "name": "builderIdx",
+        "type": "uint8",
+        "indexed": false,
         "internalType": "uint8"
       },
       {
@@ -373,8 +502,39 @@
   },
   {
     "type": "event",
-    "name": "BuildPlayerBlockFailedWarning",
+    "name": "BlockBuilt",
     "inputs": [
+      {
+        "name": "round",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
+      },
+      {
+        "name": "builderIdx",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "bid",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BuildPlayerBlockFailed",
+    "inputs": [
+      {
+        "name": "builderIdx",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
       {
         "name": "data",
         "type": "bytes",
@@ -386,18 +546,77 @@
   },
   {
     "type": "event",
+    "name": "BundleSettled",
+    "inputs": [
+      {
+        "name": "playerIdx",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "success",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      },
+      {
+        "name": "bundle",
+        "type": "tuple",
+        "indexed": false,
+        "internalType": "struct PlayerBundle",
+        "components": [
+          {
+            "name": "swaps",
+            "type": "tuple[]",
+            "internalType": "struct SwapSell[]",
+            "components": [
+              {
+                "name": "fromAssetIdx",
+                "type": "uint8",
+                "internalType": "uint8"
+              },
+              {
+                "name": "toAssetIdx",
+                "type": "uint8",
+                "internalType": "uint8"
+              },
+              {
+                "name": "fromAmount",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "minToAmount",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ]
+          },
+          {
+            "name": "builderGoldTip",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "Burn",
     "inputs": [
       {
         "name": "playerIdx",
         "type": "uint8",
-        "indexed": true,
+        "indexed": false,
         "internalType": "uint8"
       },
       {
         "name": "assetIdx",
         "type": "uint8",
-        "indexed": true,
+        "indexed": false,
         "internalType": "uint8"
       },
       {
@@ -405,6 +624,31 @@
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CreateBundleFailed",
+    "inputs": [
+      {
+        "name": "playerIdx",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "builderIdx",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "revertData",
+        "type": "bytes",
+        "indexed": false,
+        "internalType": "bytes"
       }
     ],
     "anonymous": false
@@ -424,7 +668,7 @@
   },
   {
     "type": "event",
-    "name": "DefaultBlockBuilt",
+    "name": "EmptyBlock",
     "inputs": [
       {
         "name": "round",
@@ -461,13 +705,13 @@
       {
         "name": "playerIdx",
         "type": "uint8",
-        "indexed": true,
+        "indexed": false,
         "internalType": "uint8"
       },
       {
         "name": "assetIdx",
         "type": "uint8",
-        "indexed": true,
+        "indexed": false,
         "internalType": "uint8"
       },
       {
@@ -475,25 +719,6 @@
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "PlayerBlockBuilt",
-    "inputs": [
-      {
-        "name": "round",
-        "type": "uint16",
-        "indexed": false,
-        "internalType": "uint16"
-      },
-      {
-        "name": "builderIdx",
-        "type": "uint8",
-        "indexed": true,
-        "internalType": "uint8"
       }
     ],
     "anonymous": false
@@ -513,38 +738,6 @@
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "PlayerTurnFailed",
-    "inputs": [
-      {
-        "name": "playerIdx",
-        "type": "uint8",
-        "indexed": false,
-        "internalType": "uint8"
-      },
-      {
-        "name": "revertData",
-        "type": "bytes",
-        "indexed": false,
-        "internalType": "bytes"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "PlayerTurnSuccess",
-    "inputs": [
-      {
-        "name": "playerIdx",
-        "type": "uint8",
-        "indexed": false,
-        "internalType": "uint8"
       }
     ],
     "anonymous": false
@@ -600,9 +793,61 @@
     "anonymous": false
   },
   {
+    "type": "event",
+    "name": "Transfer",
+    "inputs": [
+      {
+        "name": "fromPlayerIdx",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "toPlayerIdx",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "assetIdx",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "assetAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
     "type": "error",
     "name": "AccessError",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "AlreadyInRoundError",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "BuildBlockFailedError",
+    "inputs": [
+      {
+        "name": "builderIdx",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "revertData",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ]
   },
   {
     "type": "error",
@@ -612,6 +857,33 @@
         "name": "bid",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "BundleAlreadySettledError",
+    "inputs": [
+      {
+        "name": "playerIdx",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "BundleNotSettledError",
+    "inputs": [
+      {
+        "name": "builderIdx",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "playerIdx",
+        "type": "uint8",
+        "internalType": "uint8"
       }
     ]
   },
@@ -654,6 +926,11 @@
   },
   {
     "type": "error",
+    "name": "InsufficientBundleGasError",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InsufficientLiquidityError",
     "inputs": []
   },
@@ -674,11 +951,6 @@
   },
   {
     "type": "error",
-    "name": "MinGasError",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "MinKError",
     "inputs": []
   },
@@ -694,45 +966,43 @@
   },
   {
     "type": "error",
-    "name": "PlayerAlreadyIncludedError",
-    "inputs": [
-      {
-        "name": "playerIdx",
-        "type": "uint8",
-        "internalType": "uint8"
-      }
-    ]
+    "name": "PrecisionError",
+    "inputs": []
   },
   {
     "type": "error",
-    "name": "PlayerBuildBlockFailedError",
+    "name": "SlippageError",
     "inputs": [
       {
-        "name": "builderIdx",
+        "name": "fromAssetIdx",
         "type": "uint8",
         "internalType": "uint8"
       },
       {
-        "name": "revertData",
-        "type": "bytes",
-        "internalType": "bytes"
-      }
-    ]
-  },
-  {
-    "type": "error",
-    "name": "PlayerMissingFromBlockError",
-    "inputs": [
-      {
-        "name": "builderIdx",
+        "name": "toAssetIdx",
         "type": "uint8",
         "internalType": "uint8"
+      },
+      {
+        "name": "fromAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minToAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "actualToAmount",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ]
   },
   {
     "type": "error",
-    "name": "PrecisionError",
+    "name": "TooManySwapsError",
     "inputs": []
   }
 ]
