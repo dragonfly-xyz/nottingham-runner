@@ -1,5 +1,5 @@
 import EventEmitter from "events";
-import { EvmNode, NodeJob } from "./node.js";
+import { EvmNode, NodeJob } from "../node.js";
 
 interface QueuedJob<TResult extends any = void> {
     job: NodeJob<TResult>;
@@ -8,12 +8,12 @@ interface QueuedJob<TResult extends any = void> {
     reject: (err?: any) => void;
 }
 
-export class NodeCluster extends EventEmitter {
-    public static async create(workers: number = 5): Promise<NodeCluster> {
+export class LocalNodeCluster extends EventEmitter {
+    public static async create(workers: number = 5): Promise<LocalNodeCluster> {
         const nodes = await Promise.all(
             [...new Array(workers)].map(() => EvmNode.create()),
         );
-        return new NodeCluster(nodes);
+        return new LocalNodeCluster(nodes);
     }
 
     private _queue: QueuedJob<any>[] = [];
@@ -49,11 +49,6 @@ export class NodeCluster extends EventEmitter {
     public async shutdown(): Promise<void> {
         this._queue = [];
         await Promise.all(this._nodes.map(n => n.shutdown()));
-    }
-
-    public async cancelAll(): Promise<void> {
-        this._queue = [];
-        await Promise.all(this._nodes.map(n => n.cancel()));
     }
 
     private async _runLoop(): Promise<void> {

@@ -19,13 +19,16 @@ export class Prng {
     }
 
     public sampleWeighted(weights: number[], r: number): number[] {
+        const idxs = weights.map((_, i) => i);
         weights = weights.slice();
-        const sampled = [] as number[];
+        const sampledIdxs = [] as number[];
         for (let i = 0; i < r; ++i) {
-            sampled.push(this.pickWeighted(weights));
-            weights.splice(sampled[r], 1);
+            const idx = this.pickWeighted(weights);
+            sampledIdxs.push(idxs[idx]);
+            weights.splice(idx, 1);
+            idxs.splice(idx, 1);
         }
-        return sampled;
+        return sampledIdxs;
     }
 
     public pickWeighted(weights: number[]): number {
@@ -35,7 +38,12 @@ export class Prng {
         const accWeights = weights.reduce((acc, w, i) => [...acc, w + (acc[i - 1] ?? 0)], []);
         const total = weights = accWeights[accWeights.length - 1] ?? 0;
         const needle = Math.floor(this.uniformRange(0, total));
-        return accWeights.findIndex((s => s > needle));
+        return accWeights.findIndex((s => s >= needle));
+    }
+
+    public shuffle<T>(arr: T[]): T[] {
+        const idxs = arr.map((_, i) => ({ r: this.uniform(), idx: i })).sort((a, b) => a.r - b.r);
+        return idxs.slice().map(r => arr[r.idx]);
     }
 
     public uniform(): number {

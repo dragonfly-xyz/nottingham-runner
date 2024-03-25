@@ -7,10 +7,10 @@ import {
     Hex,
     Address,
 } from "viem";
-import { Contest } from "./contest.js";
-import { MatchMaker, ScrimmageMatchMaker, TournamentMatchMaker } from "./matchmakers.js";
-import { NodeCluster } from "./node-cluster.js";
-import { MatchJob, MatchResult, PlayerScore } from "./match.js";
+import { Contest, SeasonInfo } from "./contest.js";
+import { MatchMaker } from "./matchmakers.js";
+import { LocalMatchPool } from './pools/local-match-pool.js';
+import { MatchPool } from "./pools/match-pool.js";
 
 yargs(process.argv.slice(0)).command(
     '$0', 'run a tournament on the current (closed) season',
@@ -29,27 +29,31 @@ yargs(process.argv.slice(0)).command(
         address: argv.address,
         mode: argv.mode == 'tournament' ? MatchMakingMode.Tournament : MatchMakingMode.Scrimmage,
         seasonKeys: [],
+        poolConfig: { workerCount: 4 },
     }),
 ).argv;
+
+interface LocalPoolConfig {
+    workerCount: number;
+}
+
+interface RemotePoolConfig {
+    // TODO
+}
 
 interface TournamentConfig {
     address: Address;
     seasonKeys: Hex[];
     mode: MatchMakingMode;
+    poolConfig: LocalPoolConfig | RemotePoolConfig;
 }
 
 const SCRIMMAGE_MATCHMAKER_CONFIG = {
-    targetConfidence: 0.66,
-    minMatchesPerPlayer: 10,
-    maxMatchesPerPlayer: 20,
+    matchesPerPlayerPerRound: [2, 2, 2],
 };
 
 const TOURNAMENT_MATCHMAKER_CONFIG = {
-    targetConfidence: 0.75,
-    minMatchesPerPlayer: 10,
-    maxMatchesPerPlayer: 40,
-    eliteConfidence: 0.95,
-    eliteCount: 10,
+    matchesPerPlayerPerRound: [3, 4, 5, 6],
 };
 
 enum MatchMakingMode {
@@ -64,49 +68,44 @@ async function runTournament(cfg: TournamentConfig) {
         throw new Error('Season still open.');
     }
     const playerCodes = await contest.getActivePlayersForSeason(season);
-    const cluster = await NodeCluster.create();
-    let mm: MatchMaker;
-    if (cfg.mode == MatchMakingMode.Tournament) {
-        mm = new TournamentMatchMaker({
-            ...TOURNAMENT_MATCHMAKER_CONFIG,
-            seed: season.privateKey,
-            players: Object.keys(playerCodes),
-        });
-    } else {
-        mm = new ScrimmageMatchMaker({
-            ...SCRIMMAGE_MATCHMAKER_CONFIG,
-            seed: season.privateKey,
-            players: Object.keys(playerCodes),
-        })
-    }
+    const pool = await createMatchPool(cfg.poolConfig);
+    const mm: MatchMaker = new MatchMaker({
+        ...(cfg.mode === MatchMakingMode.Tournament
+                ? TOURNAMENT_MATCHMAKER_CONFIG
+                : SCRIMMAGE_MATCHMAKER_CONFIG
+            ),
+        seed: season.privateKey,
+        players: Object.keys(playerCodes),
+    });
     while (!mm.isDone()) {
-        const matchResults = [] as Array<PlayerScore[]>;
-        const matchPromises = [] as Array<Promise<MatchResult>>;
-        while (cluster.queueSize < 10) {
-            const matchPlayers = mm.getNextMatch();
-            if (matchPlayers.length === 0) {
-                break;
-            }
-            const p = cluster.run(new MatchJob(
-                season.privateKey,
-                matchPlayers.map(id => ({ id, bytecode: playerCodes[id] })),
-            ));
-            p.then(r => {
-                matchPromises.splice(matchPromises.indexOf(p), 1);
-                matchResults.push(r.scores);
-            }).catch(err => console.warn(`Match with ${matchPlayers} failed: ${err}`));
-            matchPromises.push(p);
+        let matchCount = 0;
+        let matchPromises = [] as Array<Promise<any>>;
+        const playersPerMatch = mm.getRoundMatches();
+        for (const matchPlayers of playersPerMatch) {
+            ++matchCount;
+            matchPromises.push((async () => {
+                try {
+                    const result = await pool.runMatch({
+                        seed: season.privateKey,
+                        players: Object.assign(
+                            {},
+                            ...matchPlayers.map(id => ({ bytecode: playerCodes[id] })),
+                        ),
+                    });
+                    mm.rankMatchResult(
+                        Object.keys(result.playerResults)
+                        .sort((a, b) => result.playerResults[b].score - result.playerResults[a].score),
+                    );
+                } catch (err) {
+                    console.error(`Match with players ${matchPlayers.join(', ')} failed: `, err.message);
+                } finally {
+                    --matchCount;
+                }
+            })());
         }
-        try {
+        while (matchCount > 0) {
             await Promise.race(matchPromises);
-        } catch (err) {
-            console.warn(err);
-        }
-        if (matchResults.length === 5 || cluster.queueSize === 0) {
-            for (const r of matchResults) {
-                mm.rankMatchResult(r.map(s => s.id));
-            }
-            matchResults.splice(0, matchResults.length);
+            console.info(`Matches left: ${matchCount}...`);
         }
     }
     const nextSeasonIdx = season.idx + 1;
@@ -115,4 +114,16 @@ async function runTournament(cfg: TournamentConfig) {
         mm.getScores()[0].address,
         cfg.seasonKeys[nextSeasonIdx] ?? zeroHash,
     );
+}
+
+
+function isLocalPoolConfig(cfg: LocalPoolConfig | RemotePoolConfig): cfg is LocalPoolConfig {
+    return (cfg as LocalPoolConfig).workerCount !== undefined;
+}
+
+async function createMatchPool(cfg?: unknown): Promise<MatchPool> {
+    if (isLocalPoolConfig(cfg)) {
+        return LocalMatchPool.create(cfg.workerCount);
+    }
+    throw new Error('unimplemented');
 }

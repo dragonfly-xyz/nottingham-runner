@@ -2,7 +2,6 @@ import process from "process";
 import CONTEST_ABI from "../../artifacts/Contest.abi.json";
 import { AbiEvent } from "abitype";
 import {
-    Abi,
     zeroHash,
     Hex,
     Address,
@@ -18,7 +17,7 @@ import {
 } from "viem";
 // import { zkSync } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
-import { Decrypter } from "./decrypt.js";
+import { decryptPlayerCode, derivePlayerCodeDecryptKey } from "./decrypt.js";
 
 const EVENTS = CONTEST_ABI.filter(e => e.type === 'event') as AbiEvent[]
 const RETIRED_EVENT = EVENTS.find(e => e.name === 'Retired');
@@ -122,7 +121,6 @@ export class Contest {
         if (!seasonInfo.privateKey) {
             throw new Error(`No private key for season ${seasonInfo.idx}.`);
         }
-        const decrypter = new Decrypter(seasonInfo.privateKey);
         const events = (await Promise.all([
             this._readClient.getLogs({
                 address: this.address,
@@ -142,22 +140,30 @@ export class Contest {
                 (CodeCommittedEvent | RetiredEvent);
             const addr = checksumAddress(decoded.args.player);
             if (isRetiredEvent(decoded)) {
-                if (!commits[addr]) {
-                    commits[addr] = '0x';
-                }
+                // Retirement is permanent.
+                commits[addr] = '0x';
             } else {
                 if (!commits[addr]) {
-                    const bytecode = decrypter.decrypt(decoded.args.encryptedCode);
+                    const bytecode = decryptPlayerCode(
+                        derivePlayerCodeDecryptKey(seasonInfo.privateKey, addr),
+                        decoded.args.encryptedCode,
+                    );
                     if (keccak256(bytecode) !== decoded.args.encryptedCode) {
                         console.warn(`Player ${addr} provided invalid code hash.`);
-                        delete commits[addr];
+                        // Do not fall back to prior to mitigate DoS.
+                        commits[addr] = '0x';
                     } else {
                         commits[addr] = bytecode;
                     }
                 }
             }
         }
-        return commits;
+        return Object.assign(
+            {},
+            ...Object.entries(commits)
+                .filter(([k, v]) => v && v !== '0x')
+                .map(([k, v]) => ({ [k]: v })),
+        );
     }
 
     public async beginNewSeason(seasonIdx: number, topPlayer: Address, publicKey: Hex): Promise<number> {

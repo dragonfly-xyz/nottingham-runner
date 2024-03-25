@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { EvmNode } from "../src/node.js";
-import { MatchJob } from "../src/match.js";
+import { MatchJob } from "../src/pools/match.js";
 import crypto from "crypto";
 import { toHex } from "viem";
 
@@ -24,20 +24,20 @@ describe('match tests', () => {
         let gameOverLogData;
         const job = new MatchJob(
             seed,
-            [
-                { id: 'a', bytecode: EMTPY_BYTECODE },
-                { id: 'b', bytecode: EMTPY_BYTECODE },
-                { id: 'c', bytecode: EMTPY_BYTECODE },
-            ],
+            {
+                ['a']: { bytecode: EMTPY_BYTECODE },
+                ['b']: { bytecode: EMTPY_BYTECODE },
+                ['c']: { bytecode: EMTPY_BYTECODE },
+            },
             (name, data) => {
                 if (name === 'game_over') {
                     gameOverLogData = data;
                 }
             },
         );
-        const { scores } = await node.run(job);
+        const { playerResults } = await node.run(job);
         expect(gameOverLogData?.scores?.length).to.eq(3);
-        expect(scores.map(s => s.id)).to.deep.eq(['a','b','c']);
+        expect(Object.keys(playerResults)).to.deep.eq(['a','b','c']);
     });
 
     it('can run a match with failing to deploy player', async () => {
@@ -45,18 +45,18 @@ describe('match tests', () => {
         const failedDeploys = [];
         const job = new MatchJob(
             seed,
-            [
-                { id: 'a', bytecode: EMTPY_BYTECODE },
-                { id: 'b', bytecode: FAILING_DEPLOY_BYTECODE },
-            ],
+            {
+                ['a']: { bytecode: EMTPY_BYTECODE },
+                ['b']: { bytecode: FAILING_DEPLOY_BYTECODE },
+            },
             (name, data) => {
                 if (name === 'create_player_failed') {
                     failedDeploys.push(data.player);
                 }
             },
         );
-        const { scores } = await node.run(job);
-        expect(scores.map(s => s.id)).to.deep.eq(['a', 'b']);
+        const { playerResults } = await node.run(job);
+        expect(Object.keys(playerResults)).to.deep.eq(['a', 'b']);
         expect(failedDeploys).to.deep.eq(['b']);
     });
 
@@ -64,14 +64,14 @@ describe('match tests', () => {
         const seed = toHex(crypto.randomBytes(32));
         const job = new MatchJob(
             seed,
-            [
-                { id: 'a', bytecode: EMTPY_BYTECODE },
-                { id: 'b', bytecode: FAILING_PLAYER_BYTECODE },
-            ],
+            {
+                ['a']: { bytecode: EMTPY_BYTECODE },
+                ['b']: { bytecode: FAILING_PLAYER_BYTECODE },
+            },
             () => {},
         );
-        const { scores } = await node.run(job);
-        expect(scores.map(s => s.id)).to.deep.eq(['a', 'b']);
+        const { playerResults } = await node.run(job);
+        expect(Object.keys(playerResults)).to.deep.eq(['a', 'b']);
     });
 
     it('can run a match with eternal players', async () => {
@@ -79,12 +79,12 @@ describe('match tests', () => {
         let gameOverLogData;
         const job = new MatchJob(
             seed,
-            [
-                { id: 'a', bytecode: ETERNAL_PLAYER_BYTECODE },
-                { id: 'b', bytecode: ETERNAL_PLAYER_BYTECODE },
-                { id: 'c', bytecode: ETERNAL_PLAYER_BYTECODE },
-                { id: 'd', bytecode: ETERNAL_PLAYER_BYTECODE },
-            ],
+            {
+                ['a']: { bytecode: ETERNAL_PLAYER_BYTECODE },
+                ['b']: { bytecode: ETERNAL_PLAYER_BYTECODE },
+                ['c']: { bytecode: ETERNAL_PLAYER_BYTECODE },
+                ['d']: { bytecode: ETERNAL_PLAYER_BYTECODE },
+            },
             (name, data) => {
                 if (name === 'game_over') {
                     gameOverLogData = data;
@@ -93,7 +93,7 @@ describe('match tests', () => {
                 }
             },
         );
-        const { scores } = await node.run(job);
-        expect(scores.map(s => s.id)).to.deep.eq(['a', 'b', 'c', 'd']);
+        const { playerResults } = await node.run(job);
+        expect(Object.keys(playerResults)).to.deep.eq(['a', 'b', 'c', 'd']);
     });
 });

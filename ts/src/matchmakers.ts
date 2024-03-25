@@ -7,13 +7,6 @@ export interface ScoredPlayer {
     score: number;
 }
 
-export interface MatchMaker {
-    isDone(): boolean;
-    getNextMatch(): string[];
-    getScores(): ScoredPlayer[];
-    rankMatchResult(orderedPlayers: string[]): void;
-}
-
 interface PlayerRankingInfo {
     matchCount: number;
     mu: number;
@@ -22,12 +15,10 @@ interface PlayerRankingInfo {
 
 const EMPTY_PLAYER_RANKING_INFO: PlayerRankingInfo = {
     matchCount: 0,
-    mu: 0,
-    sigma: Number.POSITIVE_INFINITY,
+    ...oskill.rating(),
 };
 
-const MIN_MATCH_SEATS = 3;
-const MAX_MATCH_SEATS = 4;
+const MATCH_SEATS = 4;
 
 function getScoresFromPlayerRankings(rankings: PlayerRankings): ScoredPlayer[] {
     return Object.entries(rankings)
@@ -35,12 +26,12 @@ function getScoresFromPlayerRankings(rankings: PlayerRankings): ScoredPlayer[] {
         .sort((a, b) => b.score - a.score);
 }
 
-class PlayerRankings {
-    private readonly _ids: string[];
-    private _scoresById: { [id: string]: PlayerRankingInfo };
+export class PlayerRankings {
+    protected readonly _ids: string[];
+    protected _scoresById: { [id: string]: PlayerRankingInfo };
     
     public constructor(ids: string[]) {
-        this._ids = ids.slice().sort((a, b) => a.localeCompare(b));
+        this._ids = ids.slice();
         this._scoresById = Object.assign(
             {},
             ...ids.map(id => ({ [id]: {... EMPTY_PLAYER_RANKING_INFO } })),
@@ -50,10 +41,15 @@ class PlayerRankings {
     public isId(id: string): boolean {
         return id in this._scoresById;
     }
+    
+    public get playerCount(): number {
+        return this._ids.length;
+    }
 
     public getConfidence(id: string): number {
-        // TODO: range?
-        return Math.max(1 - this._scoresById[id].sigma);
+        return Math.max(0, Math.min(1,
+            1 - this._scoresById[id].sigma / EMPTY_PLAYER_RANKING_INFO.sigma
+        ));
     }
 
     public getMatchCount(id: string): number {
@@ -64,8 +60,8 @@ class PlayerRankings {
         return ordinal(this._scoresById[id]);
     }
 
-    public get ids(): string[] {
-        return this._ids;
+    public getIds(): string[] {
+        return this._ids.slice();
     }
 
     public rankMatchResult(ids: string[]): void {
@@ -82,79 +78,69 @@ class PlayerRankings {
     }
 }
 
-export type ScrimmageMatchMakerConfig = {
+export type MatchMakerConfig = {
     seed: string;
-    targetConfidence: number;
-    minMatchesPerPlayer: number;
-    maxMatchesPerPlayer: number;
+    matchesPerPlayerPerRound: number[];
 } & (
         { players: string[]; rankings?: never; } |
         { rankings: PlayerRankings; players?: never; }
     );
 
-export class ScrimmageMatchMaker implements MatchMaker {
-    private readonly _prng: Prng;
-    private readonly _targetConfidence: number;
-    private readonly _minMatchesPerPlayer: number;
-    private readonly _maxMatchesPerPlayer: number;
-    private readonly _rankings: PlayerRankings;
+export class MatchMaker {
+    protected readonly _prng: Prng;
+    protected readonly _rankings: PlayerRankings;
+    protected readonly _matchesPerPlayerPerRound: number[];
+    protected _roundIdx: number = 0;
 
-    public constructor(cfg: ScrimmageMatchMakerConfig) {
-        if (cfg.maxMatchesPerPlayer < cfg.minMatchesPerPlayer ||
-            cfg.targetConfidence > 1 ||
-            cfg.targetConfidence < 0
-        ) {
+    public constructor(cfg: MatchMakerConfig) {
+        if (cfg.matchesPerPlayerPerRound.length < 1) {
             throw new Error('Invalid matchmaker config');
         }
+        this._matchesPerPlayerPerRound = cfg.matchesPerPlayerPerRound;
         this._prng = new Prng(cfg.seed);
-        this._targetConfidence = cfg.targetConfidence;
-        this._minMatchesPerPlayer = cfg.minMatchesPerPlayer;
+        this._matchesPerPlayerPerRound = cfg.matchesPerPlayerPerRound;
         this._rankings = cfg.rankings ?? new PlayerRankings(cfg.players);
     }
 
-    public getNextMatch(): string[] {
-        const playerIds = this._getEligiblePlayers();
-        if (playerIds.length === 0) {
+    public get roundIdx(): number {
+        return this._roundIdx;
+    }
+
+    public getRoundMatches(): string[][] {
+        if (this._roundIdx >= this._matchesPerPlayerPerRound.length) {
             return [];
         }
-        const playerWeights = playerIds
-            // TODO: Find sigma upperbound or use logarithmic transformation.
-            .map(id => Math.max(Math.min(this._rankings[id].sigma, 100), 0));
-        return this._prng
-            .sampleWeighted(playerWeights, Math.max(MAX_MATCH_SEATS))
-            .map(idx => playerIds[idx]);
-    }
-
-    private _isEligible(id: string): boolean {
-        let isEligible = false;
-        const confidence = this._rankings.getConfidence(id);
-        const matchCount = this._rankings.getMatchCount(id);
-        if (confidence < this._targetConfidence || matchCount < this._minMatchesPerPlayer) {
-            isEligible = true;
-        } else if (confidence >= this._targetConfidence && matchCount < this._maxMatchesPerPlayer) {
-            isEligible = true;
-        }
-        return isEligible;
-    }
-
-    private _getEligiblePlayers(): string[] {
-        const eligible = [] as string[];
-        const ineligbile = [] as string[];
-        for (const id of this._rankings.ids) {
-            if (this._isEligible(id)) {
-                eligible.push(id);
-            } else {
-                ineligbile.push(id);
+        const matches = [] as string[][];
+        for (let i = 0; i < this._matchesPerPlayerPerRound[this._roundIdx]; ++i) {
+            const playerIds = this._prng.shuffle(this.getRoundPlayers());
+            if (playerIds.length < MATCH_SEATS) {
+                throw new Error(`not enough players for a full match: ${playerIds.length}/${MATCH_SEATS}`);
+            }
+            const matchCount = Math.ceil(playerIds.length / MATCH_SEATS);
+            for (let j = 0; j < matchCount; ++j) {
+                const matchPlayers = [] as string[];
+                for (let k = 0; k < MATCH_SEATS; ++k) {
+                    matchPlayers.push(playerIds[(j * MATCH_SEATS + k) % playerIds.length]);
+                }
+                matches.push(matchPlayers);
             }
         }
-        // If below minimum, pad with ineligible players.
-        if (eligible.length > 0 && eligible.length < MIN_MATCH_SEATS) {
-            ineligbile.sort((a, b) =>
-                this._rankings.getConfidence(b) - this._rankings.getConfidence(a),
-            );
-            eligible.push(...ineligbile.slice(0, MIN_MATCH_SEATS - eligible.length));
-        }
-        return eligible;
+        return matches;
+    }
+   
+    public advanceRound(): void {
+        ++this._roundIdx;
+    }
+
+    public getAllPlayers(): string[] {
+        return this._rankings.getIds();
+    }
+    
+    public getRoundPlayers(): string[] {
+        const minPlayerPercentile = 1 / (2 ** this._roundIdx);
+        return this.getAllPlayers()
+            .sort((a, b) => this._rankings.getScore(b) - this._rankings.getScore(a))
+            .slice(Math.ceil(this._rankings.playerCount * -minPlayerPercentile));
     }
 
     public rankMatchResult(orderedPlayers: string[]): void {
@@ -162,52 +148,11 @@ export class ScrimmageMatchMaker implements MatchMaker {
     }
 
     public isDone(): boolean {
-        return this._getEligiblePlayers().length == 0;
+        return this._roundIdx >= this._matchesPerPlayerPerRound.length;
     }
 
-    public getScores(): ScoredPlayer[] {
-        return getScoresFromPlayerRankings(this._rankings);
-    }
-}
-
-export type TournamentMatchMakerConfig = ScrimmageMatchMakerConfig & {
-    eliteCount: number;
-    eliteConfidence: number;
-}
-
-export class TournamentMatchMaker implements MatchMaker {
-    private readonly _prng: Prng;
-    private readonly _eliteCount: number;
-    private readonly _eliteConfidence: number;
-    private readonly _scrimmage: ScrimmageMatchMaker;
-    private readonly _rankings: PlayerRankings;
-
-    public constructor(cfg: TournamentMatchMakerConfig) {
-        if (cfg.eliteConfidence > 1 || cfg.eliteConfidence < 0) {
-            throw new Error('Invalid matchmaker config');
-        }
-        this._prng = new Prng(cfg.seed);
-        this._eliteConfidence = cfg.eliteConfidence;
-        this._eliteCount = cfg.eliteCount;
-        this._rankings = cfg.rankings ?? new PlayerRankings(cfg.players);
-        this._scrimmage = new ScrimmageMatchMaker(cfg);
-    }
-
-    public getNextMatch(): string[] {
-        // ...
-        return [];
-    }
-
-    public rankMatchResult(orderedPlayers: string[]): void {
-        // ...
-    }
-
-    public isDone(): boolean {
-        if (!this._scrimmage.isDone()) {
-            return false;
-        }
-        // ...
-        return true;
+    public getScore(id: string): number {
+        return this._rankings.getScore(id);
     }
 
     public getScores(): ScoredPlayer[] {

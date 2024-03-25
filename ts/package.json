@@ -11,7 +11,7 @@
     "build": "tsc -b",
     "build:prod": "esbuild --bundle --platform=node --sourcemap --outfile=js/index.js src/run.ts",
     "start": "node --enable-source-maps js/index.js",
-    "test": "mocha js/ts/test/**.t.js --timeout 0"
+    "test": "mocha -n enable-source-maps js/ts/test/**.t.js --timeout 0 -b"
   },
   "repository": {
     "type": "git",
@@ -29,6 +29,7 @@
     "@types/yargs": "^17.0.32",
     "chai": "^5.1.0",
     "esbuild": "^0.20.0",
+    "mathjs": "^12.4.1",
     "mocha": "^10.3.0",
     "typescript": "^5.3.3"
   },

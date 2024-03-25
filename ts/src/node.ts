@@ -19,7 +19,6 @@ export interface NodeInfo {
 }
 
 export interface NodeJob<TResult extends any = void> {
-    cancel(err?: Error): Promise<void>;
     run(node: NodeInfo): Promise<TResult>;
 }
 
@@ -87,7 +86,6 @@ export class EvmNode {
             if (code) {
                 console.error(`EVM node worker exited with error code ${code}!`);
             }
-            this.cancel();
         });
     }
 
@@ -117,20 +115,9 @@ export class EvmNode {
     }
 
     public async shutdown(): Promise<void> {
-        await this.cancel();
         this._currentJob = undefined;
         this._isDead = true;
         this._proc.kill();
-    }
-
-    public async cancel(): Promise<void> {
-        if (this._currentJob) {
-            try {
-                await this._currentJob.cancel();
-            } finally {
-                this._currentJob = undefined;
-            }
-        }
     }
 
     public get isDead(): boolean {
