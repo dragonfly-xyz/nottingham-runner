@@ -50,11 +50,11 @@ interface TournamentConfig {
 }
 
 const SCRIMMAGE_MATCHMAKER_CONFIG = {
-    matchesPerPlayerPerRound: [2, 2, 2],
+    matchesPerPlayerPerRound: [2, 3, 4],
 };
 
 const TOURNAMENT_MATCHMAKER_CONFIG = {
-    matchesPerPlayerPerRound: [3, 4, 5, 6],
+    matchesPerPlayerPerRound: [3, 4, 6, 10],
 };
 
 enum MatchMakingMode {
