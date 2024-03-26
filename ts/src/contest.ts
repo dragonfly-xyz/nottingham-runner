@@ -183,11 +183,11 @@ export class Contest {
                             decoded.args.submission,
                         );
                         if (keccak256(bytecode) !== decoded.args.codeHash) {
-                            throw new Error(`Player ${addr} provided invalid code hash.`);
+                            throw new Error(`Mismatched code hash.`);
                         }
                         commits[addr] = bytecode;
                     } catch (err) {
-                        console.warn(err.message);
+                        console.warn(`Player (${addr}) submission failed: ${err.message}`);
                         // On failure, do not fall back to prior submissions to mitigate DoS.
                         commits[addr] = '0x';
                     }
