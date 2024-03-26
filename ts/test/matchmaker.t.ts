@@ -61,7 +61,7 @@ class TestPlayerRankings extends PlayerRankings {
     }
 }
 
-describe.only('matchmaker tests', () => {
+describe('matchmaker tests', () => {
     describe('scrimmage', () => {
         const DEFAULT_SCRIMMAGE_CFG = {
             matchesPerPlayerPerRound: [1, 2, 3],

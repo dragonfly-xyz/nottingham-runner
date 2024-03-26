@@ -6,6 +6,7 @@ import {
     zeroHash,
     Hex,
     Address,
+    keccak256,
 } from "viem";
 import { Contest, SeasonInfo } from "./contest.js";
 import { MatchMaker } from "./matchmakers.js";
@@ -64,9 +65,15 @@ enum MatchMakingMode {
 async function runTournament(cfg: TournamentConfig) {
     const contest = new Contest(cfg.address);
     const season  = await contest.getCurrentSeasonInfo();
-    if (!season.privateKey) {
-        throw new Error('Season still open.');
+    if (!season.publicKey) {
+        throw new Error('Season hasn\'t started.');
     }
+    if (cfg.mode === MatchMakingMode.Tournament) {
+        if (!season.privateKey) {
+            throw new Error('Season still active.');
+        }
+    }
+    const seed = keccak256(Buffer.from(season.publicKey));
     const playerCodes = await contest.getActivePlayersForSeason(season);
     const pool = await createMatchPool(cfg.poolConfig);
     const mm: MatchMaker = new MatchMaker({
@@ -74,7 +81,7 @@ async function runTournament(cfg: TournamentConfig) {
                 ? TOURNAMENT_MATCHMAKER_CONFIG
                 : SCRIMMAGE_MATCHMAKER_CONFIG
             ),
-        seed: season.privateKey,
+        seed,
         players: Object.keys(playerCodes),
     });
     while (!mm.isDone()) {
@@ -86,7 +93,7 @@ async function runTournament(cfg: TournamentConfig) {
             matchPromises.push((async () => {
                 try {
                     const result = await pool.runMatch({
-                        seed: season.privateKey,
+                        seed,
                         players: Object.assign(
                             {},
                             ...matchPlayers.map(id => ({ bytecode: playerCodes[id] })),

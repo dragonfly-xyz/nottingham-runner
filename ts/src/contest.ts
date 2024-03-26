@@ -14,14 +14,17 @@ import {
     DecodeEventLogReturnType,
     checksumAddress,
     keccak256,
+    ByteArray,
+    toBytes,
 } from "viem";
 // import { zkSync } from "viem/chains";
-import { privateKeyToAccount } from "viem/accounts";
-import { decryptPlayerCode, derivePlayerCodeDecryptKey } from "./decrypt.js";
+import { EncryptedCodeSubmission, decryptPlayerCode } from "./encrypt.js";
 
 const EVENTS = CONTEST_ABI.filter(e => e.type === 'event') as AbiEvent[]
 const RETIRED_EVENT = EVENTS.find(e => e.name === 'Retired');
 const CODE_COMMITED_EVENT = EVENTS.find(e => e.name === 'CodeCommited');
+const SEASON_STARTED_EVENT = EVENTS.find(e => e.name === 'SeasonStarted');
+const SEASON_CLOSED_EVENT = EVENTS.find(e => e.name === 'SeasonClosed');
 
 interface CodeCommittedEvent extends DecodeEventLogReturnType {
     eventName: 'CodeCommited';
@@ -29,7 +32,7 @@ interface CodeCommittedEvent extends DecodeEventLogReturnType {
         season: bigint;
         player: Address;
         codeHash: Hex;
-        encryptedCode: Hex;
+        submission: EncryptedCodeSubmission;
     };
 }
 
@@ -37,6 +40,22 @@ interface RetiredEvent extends DecodeEventLogReturnType {
     eventName: 'Retired';
     args: readonly unknown[] & {
         player: Address;
+    };
+}
+
+interface SeasonStartedEvent extends DecodeEventLogReturnType {
+    eventName: 'SeasonStarted';
+    args: readonly unknown[] & {
+        season: number;
+        publicKey: Hex;
+    };
+}
+
+interface SeasonClosedEvent extends DecodeEventLogReturnType {
+    eventName: 'SeasonClosed';
+    args: readonly unknown[] & {
+        season: number;
+        privateKey: Hex;
     };
 }
 
@@ -93,26 +112,39 @@ export class Contest {
     public async getSeasonKeys(seasonIdx: number):
         Promise<{ publicKey: Hex | null, privateKey: Hex | null }>
     {
-        let { publicKey, privateKey } = await this._readClient.readContract({
-            abi: CONTEST_ABI,
-            address: this.address,
-            functionName: 'getSeasonKeys',
-            args: [seasonIdx],
-        }) as { publicKey: Hex, privateKey: Hex };
-        if (publicKey === zeroHash || privateKey === zeroHash) {
-            const seasonKeys = (process.env?.SEASON_PRIVATE_KEYS ?? '')
-                .split(',')
-                .filter(s => s) as Hex[];
-            if (seasonKeys.length > seasonIdx) {
-                privateKey = seasonKeys[seasonIdx];
-                const acct = privateKeyToAccount(privateKey);
-                publicKey = acct.publicKey;
-            }
-        }
-        return {
-            publicKey: publicKey === zeroHash ? null : publicKey,
-            privateKey: privateKey === zeroHash ? null : privateKey,
-        };
+        let [publicKey, privateKey] = await Promise.all([
+            (async () => {
+                const [ log ] = await this._readClient.getLogs({
+                    address: this.address,
+                    event: SEASON_STARTED_EVENT,
+                    args: { season: BigInt(seasonIdx) },
+                });
+                if (!log) {
+                    return null;
+                }
+                return (decodeEventLog({
+                    abi: [ SEASON_STARTED_EVENT ],
+                    data: log.data,
+                    topics: log.topics,
+                }) as SeasonStartedEvent).args.publicKey;
+            })(),
+            (async () => {
+                const [ log ] = await this._readClient.getLogs({
+                    address: this.address,
+                    event: SEASON_CLOSED_EVENT,
+                    args: { season: BigInt(seasonIdx) },
+                });
+                if (!log) {
+                    return null;
+                }
+                return (decodeEventLog({
+                    abi: [ SEASON_CLOSED_EVENT ],
+                    data: log.data,
+                    topics: log.topics,
+                }) as SeasonClosedEvent).args.privateKey;
+            })(),
+        ]);
+        return { publicKey, privateKey };
     }
 
     public async getActivePlayersForSeason(seasonInfo: SeasonInfo)
@@ -145,10 +177,11 @@ export class Contest {
             } else {
                 if (!commits[addr]) {
                     const bytecode = decryptPlayerCode(
-                        derivePlayerCodeDecryptKey(seasonInfo.privateKey, addr),
-                        decoded.args.encryptedCode,
+                        seasonInfo.privateKey,
+                        addr,
+                        decoded.args.submission,
                     );
-                    if (keccak256(bytecode) !== decoded.args.encryptedCode) {
+                    if (keccak256(bytecode) !== decoded.args.codeHash) {
                         console.warn(`Player ${addr} provided invalid code hash.`);
                         // Do not fall back to prior to mitigate DoS.
                         commits[addr] = '0x';

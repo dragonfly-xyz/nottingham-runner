@@ -11,7 +11,7 @@
     "build": "tsc -b",
     "build:prod": "esbuild --bundle --platform=node --sourcemap --outfile=js/index.js src/run.ts",
     "start": "node --enable-source-maps js/index.js",
-    "test": "mocha -n enable-source-maps js/ts/test/**.t.js --timeout 0 -b"
+    "test": "mocha -n enable-source-maps -n openssl-legacy-provider js/ts/test/**.t.js --timeout 0 -b"
   },
   "repository": {
     "type": "git",

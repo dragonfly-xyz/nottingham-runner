@@ -124,8 +124,8 @@
       },
       {
         "name": "seasonPrivKey",
-        "type": "bytes32",
-        "internalType": "bytes32"
+        "type": "bytes",
+        "internalType": "bytes"
       }
     ],
     "outputs": [],
@@ -157,30 +157,6 @@
   },
   {
     "type": "function",
-    "name": "getSeasonKeys",
-    "inputs": [
-      {
-        "name": "seasonIdx",
-        "type": "uint32",
-        "internalType": "uint32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "publicKey",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "privateKey",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "getSeasonPlayerCodeCount",
     "inputs": [
       {
@@ -194,6 +170,19 @@
         "name": "playerCount_",
         "type": "uint32",
         "internalType": "uint32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getSeasonState",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "enum SeasonState"
       }
     ],
     "stateMutability": "view"
@@ -221,42 +210,6 @@
       }
     ],
     "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "isSeasonClosed",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "newSeason",
-    "inputs": [
-      {
-        "name": "prevSeasonIdx",
-        "type": "uint32",
-        "internalType": "uint32"
-      },
-      {
-        "name": "seasonPubKey",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "prevWinner",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "payable"
   },
   {
     "type": "function",
@@ -345,7 +298,30 @@
   },
   {
     "type": "function",
-    "name": "setPlayerCode",
+    "name": "startSeason",
+    "inputs": [
+      {
+        "name": "seasonIdx",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "seasonPubKey",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "prevWinner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "submitCode",
     "inputs": [
       {
         "name": "seasonIdx",
@@ -358,9 +334,26 @@
         "internalType": "bytes32"
       },
       {
-        "name": "encryptedCode",
-        "type": "bytes",
-        "internalType": "bytes"
+        "name": "submission",
+        "type": "tuple",
+        "internalType": "struct EncryptedCodeSubmission",
+        "components": [
+          {
+            "name": "encryptedAesKey",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "encryptedCode",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "iv",
+            "type": "bytes12",
+            "internalType": "bytes12"
+          }
+        ]
       }
     ],
     "outputs": [],
@@ -402,10 +395,27 @@
         "internalType": "bytes32"
       },
       {
-        "name": "encryptedCode",
-        "type": "bytes",
+        "name": "submission",
+        "type": "tuple",
         "indexed": false,
-        "internalType": "bytes"
+        "internalType": "struct EncryptedCodeSubmission",
+        "components": [
+          {
+            "name": "encryptedAesKey",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "encryptedCode",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "iv",
+            "type": "bytes12",
+            "internalType": "bytes12"
+          }
+        ]
       }
     ],
     "anonymous": false
@@ -473,9 +483,9 @@
       },
       {
         "name": "privateKey",
-        "type": "bytes32",
+        "type": "bytes",
         "indexed": false,
-        "internalType": "bytes32"
+        "internalType": "bytes"
       }
     ],
     "anonymous": false
@@ -492,9 +502,9 @@
       },
       {
         "name": "publicKey",
-        "type": "bytes32",
+        "type": "bytes",
         "indexed": false,
-        "internalType": "bytes32"
+        "internalType": "bytes"
       }
     ],
     "anonymous": false
@@ -566,12 +576,12 @@
   },
   {
     "type": "error",
-    "name": "PlayerCodeSizeError",
+    "name": "PlayerSubmissionError",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "SeasonClosedError",
+    "name": "SeasonNotActiveError",
     "inputs": []
   },
   {
