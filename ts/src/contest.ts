@@ -176,17 +176,20 @@ export class Contest {
                 commits[addr] = '0x';
             } else {
                 if (!commits[addr]) {
-                    const bytecode = decryptPlayerCode(
-                        seasonInfo.privateKey,
-                        addr,
-                        decoded.args.submission,
-                    );
-                    if (keccak256(bytecode) !== decoded.args.codeHash) {
-                        console.warn(`Player ${addr} provided invalid code hash.`);
-                        // Do not fall back to prior to mitigate DoS.
-                        commits[addr] = '0x';
-                    } else {
+                    try {
+                        const bytecode = decryptPlayerCode(
+                            seasonInfo.privateKey,
+                            addr,
+                            decoded.args.submission,
+                        );
+                        if (keccak256(bytecode) !== decoded.args.codeHash) {
+                            throw new Error(`Player ${addr} provided invalid code hash.`);
+                        }
                         commits[addr] = bytecode;
+                    } catch (err) {
+                        console.warn(err.message);
+                        // On failure, do not fall back to prior submissions to mitigate DoS.
+                        commits[addr] = '0x';
                     }
                 }
             }
