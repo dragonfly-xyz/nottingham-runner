@@ -140,7 +140,7 @@ export class MatchMaker {
         const minPlayerPercentile = 1 / (2 ** this._roundIdx);
         return this.getAllPlayers()
             .sort((a, b) => this._rankings.getScore(b) - this._rankings.getScore(a))
-            .slice(Math.ceil(this._rankings.playerCount * -minPlayerPercentile));
+            .slice(Math.min(MATCH_SEATS, Math.ceil(this._rankings.playerCount * -minPlayerPercentile)));
     }
 
     public rankMatchResult(orderedPlayers: string[]): void {
