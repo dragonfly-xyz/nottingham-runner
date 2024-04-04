@@ -8,17 +8,15 @@ export interface ScoredPlayer {
 }
 
 interface PlayerRankingInfo {
-    matchCount: number;
     mu: number;
     sigma: number;
 }
 
 const EMPTY_PLAYER_RANKING_INFO: PlayerRankingInfo = {
-    matchCount: 0,
     ...oskill.rating(),
 };
 
-const MATCH_SEATS = 4;
+export const MATCH_SEATS = 4;
 
 function getScoresFromPlayerRankings(rankings: PlayerRankings): ScoredPlayer[] {
     return Object.entries(rankings)
@@ -52,10 +50,6 @@ export class PlayerRankings {
         ));
     }
 
-    public getMatchCount(id: string): number {
-        return this._scoresById[id].matchCount;
-    }
-
     public getScore(id: string): number {
         return ordinal(this._scoresById[id]);
     }
@@ -71,7 +65,6 @@ export class PlayerRankings {
         }
         const changes = oskill.rate(infos.map(i => [{ sigma: i.sigma, mu: i.mu }])).flat(1);
         for (let i = 0; i < infos.length; ++i) {
-            ++infos[i].matchCount;
             infos[i].mu = changes[i].mu;
             infos[i].sigma = changes[i].sigma;
         }
@@ -100,6 +93,10 @@ export class MatchMaker {
         this._prng = new Prng(cfg.seed);
         this._matchesPerPlayerPerRound = cfg.matchesPerPlayerPerRound;
         this._rankings = cfg.rankings ?? new PlayerRankings(cfg.players);
+    }
+
+    public get maxRounds(): number {
+        return this._matchesPerPlayerPerRound.length;
     }
 
     public get roundIdx(): number {
@@ -140,7 +137,7 @@ export class MatchMaker {
         const minPlayerPercentile = 1 / (2 ** this._roundIdx);
         return this.getAllPlayers()
             .sort((a, b) => this._rankings.getScore(b) - this._rankings.getScore(a))
-            .slice(Math.min(MATCH_SEATS, Math.ceil(this._rankings.playerCount * -minPlayerPercentile)));
+            .slice(0, Math.max(MATCH_SEATS, Math.ceil(this._rankings.playerCount * minPlayerPercentile)));
     }
 
     public rankMatchResult(orderedPlayers: string[]): void {

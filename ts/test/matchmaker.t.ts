@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { PlayerRankings, MatchMaker, MatchMakerConfig } from '../src/matchmakers.js';
+import { PlayerRankings, MatchMaker, MatchMakerConfig, MATCH_SEATS } from '../src/matchmakers.js';
 import * as mathjs from 'mathjs';
 
 function cdf(x: number, mean: number = 0.5, std: number = 1/3): number {
@@ -59,9 +59,14 @@ class TestPlayerRankings extends PlayerRankings {
         const { mu, sigma } = this._scoresById[id];
         return { mu, sigma };
     }
+
+    public setRawScore(id: string, mu: number, sigma: number): void {
+        this._scoresById[id].mu = mu;
+        this._scoresById[id].mu = sigma;
+    }
 }
 
-describe('matchmaker tests', () => {
+describe.only('matchmaker tests', () => {
     describe('scrimmage', () => {
         const DEFAULT_SCRIMMAGE_CFG = {
             matchesPerPlayerPerRound: [1, 2, 3],
@@ -94,21 +99,76 @@ describe('matchmaker tests', () => {
                 players: players.players,
             });
             while (!mm.isDone()) {
-                expect(mm.getRoundPlayers().length).to.eq(Math.ceil(players.playerCount / 2**mm.roundIdx));
                 const playersPerMatch = mm.getRoundMatches();
+                const roundPlayers = mm.getRoundPlayers();
                 const playerMatchCount =
                     Object.assign({}, ...mm.getRoundPlayers().map(id => ({ [id]: 0 }))) as
                         { [id: string]: number };
                 for (const match of playersPerMatch) {
                     expect(match.every(id => players.isPlayer(id)), 'all match ids are valid players').to.be.true;
+                    expect(match.every(id => roundPlayers.includes(id)), 'all match ids are round players').to.be.true;
                     expect(uniqueIds(match).length).to.eq(match.length);
                     for (const id of match) {
                         ++playerMatchCount[id];
                     }
                 }
                 const matchesPerPlayer = DEFAULT_SCRIMMAGE_CFG.matchesPerPlayerPerRound[mm.roundIdx];
-                expect(Object.values(playerMatchCount).every(c => c >= matchesPerPlayer), `all player counts >= ${matchesPerPlayer}`).to.be.true;
+                expect(Object.values(playerMatchCount)
+                    .every(c => c >= matchesPerPlayer), `all player counts >= ${matchesPerPlayer}`).to.be.true;
                 mm.advanceRound();
+            }
+        });
+       
+        it('keeps at least MATCH_SEATS count players in round', () => {
+            const players = new NormalPlayers(100);
+            const mm = new TestMatchMaker({
+                ...DEFAULT_SCRIMMAGE_CFG,
+                matchesPerPlayerPerRound: [...new Array(Math.ceil(Math.log2(players.playerCount)))].map(() => 1),
+                players: players.players,
+            });
+            while (mm.roundIdx < mm.maxRounds - 1) {
+                expect(mm.getRoundPlayers().length).to.eq(
+                    Math.max(MATCH_SEATS, Math.ceil(players.playerCount / 2**mm.roundIdx)),
+                    'round players',
+                );
+                mm.advanceRound();
+            }
+            expect(mm.getRoundPlayers().length).to.eq(MATCH_SEATS);
+        });
+
+        it('keeps at least MATCH_SEATS count players in round', () => {
+            const players = new NormalPlayers(100);
+            const mm = new TestMatchMaker({
+                ...DEFAULT_SCRIMMAGE_CFG,
+                matchesPerPlayerPerRound: [...new Array(Math.ceil(Math.log2(players.playerCount)))].map(() => 1),
+                players: players.players,
+            });
+            while (mm.roundIdx < mm.maxRounds - 1) {
+                expect(mm.getRoundPlayers().length).to.eq(
+                    Math.max(MATCH_SEATS, Math.ceil(players.playerCount / 2**mm.roundIdx)),
+                    'round players',
+                );
+                mm.advanceRound();
+            }
+            expect(mm.getRoundPlayers().length).to.eq(MATCH_SEATS);
+        });
+
+        it('round players have the highest scores', () => {
+            const players = new NormalPlayers(100);
+            const rankings = new TestPlayerRankings(players.players);
+            const mm = new TestMatchMaker({
+                ...DEFAULT_SCRIMMAGE_CFG,
+                matchesPerPlayerPerRound: [...new Array(Math.ceil(Math.log2(players.playerCount)))].map(() => 1),
+                rankings,
+            });
+            for (const id of players.players) {
+                rankings.setRawScore(id, Math.random(), Math.random());
+            }
+            const roundPlayers = mm.getRoundPlayers();
+            for (const [idx, id] of roundPlayers.entries()) {
+                for (let i = idx + 1; i < roundPlayers.length; ++i) {
+                    expect(rankings.getScore(roundPlayers[i])).to.be.lessThanOrEqual(rankings.getScore(id));
+                }
             }
         });
 
