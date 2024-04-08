@@ -17,43 +17,42 @@ export interface LogEventHandlerData<TArgs extends {} = {}> {
     args: TArgs;
 }
 
-export type LogEventHandler = (data: LogEventHandlerData) => boolean | void;
+export type LogEventHandlerCallback<TArgs = any> = (data: LogEventHandlerData<TArgs>) => boolean | void;
+export type LogEventHandler<TArgs = any> = {
+    event: AbiEvent;
+    handler: LogEventHandlerCallback<TArgs>,
+    emitter?: Address;
+};
 
 export function handleLogEvents(
     logs: Log[],
-    events: AbiEvent[],
-    ...handlers: Array<{
-        name: string;
-        handler: LogEventHandler,
-        emitter?: Address;
-    }>
+    ...handlers: LogEventHandler[]
 ): void {
+    const eventAbis = handlers.map(h => h.event);
     outer: for (const log of logs) {
         let decoded: { eventName: string; args: { [name: string]: unknown } };
-        try {
-            decoded = decodeEventLog({
-                abi: events as Abi,
-                topics: (log as any).topics,
-                data: log.data,
-            }) as any;
-            for (const handler of handlers) {
-                if (handler.emitter && !isAddressEqual(log.address, handler.emitter)) {
+        for (const [i, abi] of eventAbis.entries()) {
+            const handler = handlers[i];
+            try {
+                if (handler.emitter &&
+                    !isAddressEqual(log.address, handler.emitter))
+                {
                     continue;
                 }
-                if (handler.name !== decoded.eventName) {
-                    continue;
-                }
-                const r = handler.handler({
-                    args: decoded.args,
-                    emitter: log.address,
-                    logIndex: log.logIndex,
-                });
-                if (r === false) {
+                decoded = decodeEventLog({
+                    abi: [abi],
+                    topics: (log as any).topics,
+                    data: log.data,
+                }) as any;
+                if (handler.handler({
+                        args: decoded.args,
+                        emitter: log.address,
+                        logIndex: log.logIndex,
+                    }) === false)
+                {
                     break outer;
                 }
-            }
-        } catch (err) {
-            console.log(err);
+            } catch {}
         }
     }
 }
@@ -67,4 +66,15 @@ export async function waitForSuccessfulReceipt(
         throw new Error(`tx ${hash} failed`);
     }
     return r;
+}
+
+function logOrdinal(log: Log): number {
+    return (Number(log.blockNumber) << 32) | log.transactionIndex;
+}
+
+export function sortLogs(logs: Log[], reversed: boolean = true): Log[] {
+    return logs.slice().sort(reversed
+        ? (a, b) => logOrdinal(b) - logOrdinal(a)
+        : (a, b) => logOrdinal(a) - logOrdinal(b)
+    );
 }

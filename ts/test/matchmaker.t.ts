@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { PlayerRankings, MatchMaker, MatchMakerConfig, MATCH_SEATS } from '../src/matchmakers.js';
+import { PlayerRankings, MatchMaker, MatchMakerConfig, MATCH_SEATS } from '../src/matchmaker.js';
 import * as mathjs from 'mathjs';
 
 function cdf(x: number, mean: number = 0.5, std: number = 1/3): number {
@@ -66,7 +66,7 @@ class TestPlayerRankings extends PlayerRankings {
     }
 }
 
-describe.only('matchmaker tests', () => {
+describe('matchmaker tests', () => {
     describe('scrimmage', () => {
         const DEFAULT_SCRIMMAGE_CFG = {
             matchesPerPlayerPerRound: [1, 2, 3],

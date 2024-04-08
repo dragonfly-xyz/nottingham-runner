@@ -1,19 +1,18 @@
 import {
     Address,
     Hex,
-    Log,
     PublicClient,
     WalletClient,
 } from "viem";
 import { AbiEvent } from "abitype";
 import GAME_DEPLOYER_ARTIFACT from "../../../artifacts/GameDeployer.json" with { type: "json" };
 import GAME_ABI from "../../../artifacts/Game.abi.json" with { type: "json" };
-import { LogEventHandler, LogEventHandlerData, handleLogEvents, waitForSuccessfulReceipt } from "../evm-utils.js";
+import { LogEventHandler, handleLogEvents, waitForSuccessfulReceipt } from "../evm-utils.js";
 import { NodeInfo, NodeJob } from "../node.js";
 import { MatchResult, Logger, PlayerInfos } from './match-pool.js';
-import { delay } from "../util.js";
 
 const ALL_EVENTS = [...GAME_ABI, ...GAME_DEPLOYER_ARTIFACT.abi].filter(o => o.type === 'event') as AbiEvent[];
+const EVENT_BY_NAME = Object.assign({}, ...ALL_EVENTS.map(e => ({ [e.name]: e })));
 
 interface RoundResult {
     isGameOver: boolean;
@@ -27,21 +26,21 @@ interface PlayerBundleEventParam {
     minToAmount: bigint;
 }
 
-type GameCreatedEventArgs = LogEventHandlerData<{ game: Address; }>;
-type CreatePlayerFailedEventArgs = LogEventHandlerData<{ playerIdx: Address; }>;
-type RoundPlayedEventArgs = LogEventHandlerData<{ round: number; }>;
-type GameOverEventArgs = LogEventHandlerData<{ rounds: number; winnerIdx: number; }>;
-type PlayerBlockUsageGasUsageEventArgs = LogEventHandlerData<{ builderIdx: number; gasUsed: number; }>;
-type PlayerBundleGasUsageEventArgs = LogEventHandlerData<{ playerIdx: number; gasUsed: number; }>;
-type CreateBundleFailedEventArgs = LogEventHandlerData<{ playerIdx: number; builderIdx: number; revertData: Hex; }>;
-type MintEventArgs = LogEventHandlerData<{ playerIdx: number; assetIdx: number; assetAmount: bigint; }>;
-type BurnEventArgs = LogEventHandlerData<{ playerIdx: number; assetIdx: number; assetAmount: bigint; }>;
-type TransferEventArgs = LogEventHandlerData<{ fromPlayerIdx: number; toPlayerIdx: number; assetIdx: number; assetAmount: bigint; }>;
-type BlockBidEventArgs = LogEventHandlerData<{ builderIdx: number; bid: bigint }>;
-type BlockBuiltEventArgs = LogEventHandlerData<{ round: number; builderIdx: number; bid: bigint }>;
-type EmptyBlockEventArgs = LogEventHandlerData<{ round: number; }>;
-type SwapEventArgs = LogEventHandlerData<{ playerIdx: number; fromAssetIdx: number; toAssetIdx: number; fromAmount: bigint; toAmount: bigint; }>;
-type BundleSettledEventArgs = LogEventHandlerData<{ playerIdx: number; success: boolean; bundle: PlayerBundleEventParam }>;
+type GameCreatedEventArgs = { game: Address; };
+type CreatePlayerFailedEventArgs = { playerIdx: Address; };
+type RoundPlayedEventArgs = { round: number; };
+type GameOverEventArgs = { rounds: number; winnerIdx: number; };
+type PlayerBlockUsageGasUsageEventArgs = { builderIdx: number; gasUsed: number; };
+type PlayerBundleGasUsageEventArgs = { playerIdx: number; gasUsed: number; };
+type CreateBundleFailedEventArgs = { playerIdx: number; builderIdx: number; revertData: Hex; };
+type MintEventArgs = { playerIdx: number; assetIdx: number; assetAmount: bigint; };
+type BurnEventArgs = { playerIdx: number; assetIdx: number; assetAmount: bigint; };
+type TransferEventArgs = { fromPlayerIdx: number; toPlayerIdx: number; assetIdx: number; assetAmount: bigint; };
+type BlockBidEventArgs = { builderIdx: number; bid: bigint };
+type BlockBuiltEventArgs = { round: number; builderIdx: number; bid: bigint };
+type EmptyBlockEventArgs = { round: number; };
+type SwapEventArgs = { playerIdx: number; fromAssetIdx: number; toAssetIdx: number; fromAmount: bigint; toAmount: bigint; };
+type BundleSettledEventArgs = { playerIdx: number; success: boolean; bundle: PlayerBundleEventParam };
 
 
 const DEFAULT_LOGGER: Logger = (name, data) => {
@@ -119,27 +118,24 @@ export class MatchJob implements NodeJob<MatchResult> {
             );
             handleLogEvents(
                 receipt.logs, 
-                ALL_EVENTS,
                 {
-                    name: 'GameCreated',
-                    handler: ({ args: { game: game_ } }: GameCreatedEventArgs) => {
+                    event: EVENT_BY_NAME.GameCreated,
+                    handler: ({ args: { game: game_ } }) => {
                         this._gameAddress = game_;
                         this._logger('game_created', { _players: this._playerIdsByIdx });
                     },
                     emitter: receipt.contractAddress,
-                },
+                } as LogEventHandler<GameCreatedEventArgs>,
+                {
+                    event: EVENT_BY_NAME.CreatePlayerFailed,
+                    handler: ({ args: { playerIdx }}) => {
+                        this._logger('create_player_failed', { player: this._playerIdsByIdx[playerIdx] });
+                    }
+                } as LogEventHandler<CreatePlayerFailedEventArgs>,
             );
             if (!this._gameAddress) {
                 throw new Error(`Failed to create game.`);
             }
-            this._handleGameEvents(
-                receipt.logs,
-                {
-                    'CreatePlayerFailed': ({ args: { playerIdx }}: CreatePlayerFailedEventArgs) => {
-                        this._logger('create_player_failed', { player: this._playerIdsByIdx[playerIdx] });
-                    }
-                },
-            );
             this._logger('created', { players: this._playerIdsByIdx });
             return this._gameAddress;
         } catch (err: any) {
@@ -162,60 +158,80 @@ export class MatchJob implements NodeJob<MatchResult> {
         );
         timeTaken = Date.now() - timeTaken;
         let isGameOver = false;
-        this._handleGameEvents(receipt.logs,
+        handleLogEvents(receipt.logs,
             {
-                'RoundPlayed':
-                    ({ args: { round } }: RoundPlayedEventArgs) => {
-                        this._logger('round_played', { round, gas: Number(receipt.gasUsed) });
-                    },
-                'GameOver':
-                    ({ args: { rounds, winnerIdx } }: GameOverEventArgs) => {
-                        isGameOver = true;
-                        this._logger('game_over', { rounds, winnerIdx, gas: Number(receipt.gasUsed) });
-                    },
-                'PlayerBlockGasUsage':
-                    ({ args: { builderIdx, gasUsed } }: PlayerBlockUsageGasUsageEventArgs) => {
-                        this._gasByPlayer[this._playerIdsByIdx[builderIdx]] += gasUsed;
-                    },
-                'PlayerBundleGasUsage':
-                    ({ args: { playerIdx, gasUsed } }: PlayerBundleGasUsageEventArgs) => {
-                        this._gasByPlayer[this._playerIdsByIdx[playerIdx]] += gasUsed;
-                    },
-                'Mint':
-                    ({ args: { assetIdx, playerIdx, assetAmount } }: MintEventArgs) => {
-                        this._logger('mint', { playerIdx, assetIdx, assetAmount });
-                    },
-                'Burn':
-                    ({ args: { assetIdx, playerIdx, assetAmount } }: BurnEventArgs) => {
-                        this._logger('burn', { playerIdx, assetIdx, assetAmount });
-                    },
-                'Transfer':
-                    ({ args: { fromPlayerIdx, toPlayerIdx, assetIdx, assetAmount } }: TransferEventArgs) => {
-                        this._logger('transfer', { fromPlayerIdx, toPlayerIdx, assetIdx, assetAmount });
-                    },
-                'Swap':
-                    ({ args: { playerIdx, fromAssetIdx, toAssetIdx, fromAmount, toAmount } }: SwapEventArgs) => {
-                        this._logger('swap', {
-                            playerIdx,
-                            fromAssetIdx,
-                            toAssetIdx,
-                            fromAmount,
-                            toAmount,
-                        });
-                    },
-                'BundleSettled':
-                    ({ args: { playerIdx, success, bundle } }: BundleSettledEventArgs) => {
-                        this._logger('bundle_settled', { playerIdx, success, bundle });
-                    },
-                'BlockBuilt':
-                    ({ args: { builderIdx, bid } }: BlockBuiltEventArgs) => {
-                        this._logger('block_built', { builderIdx, bid });
-                    },
-                'EmptyBlock':
-                    (_: EmptyBlockEventArgs) => {
-                        this._logger('empty_block', {});
-                    },
-            }
+                event: EVENT_BY_NAME.RoundPlayed,
+                handler: ({ args: { round } }) => {
+                    this._logger('round_played', { round, gas: Number(receipt.gasUsed) });
+                },
+            } as LogEventHandler<RoundPlayedEventArgs>,
+            {
+                event: EVENT_BY_NAME.GameOver,
+                handler: ({ args: { rounds, winnerIdx } }) => {
+                    isGameOver = true;
+                    this._logger('game_over', { rounds, winnerIdx, gas: Number(receipt.gasUsed) });
+                },
+            } as LogEventHandler<GameOverEventArgs>,
+            {
+                event: EVENT_BY_NAME.PlayerBlockGasUsage,
+                handler: ({ args: { builderIdx, gasUsed } }) => {
+                    this._gasByPlayer[this._playerIdsByIdx[builderIdx]] += gasUsed;
+                },
+            } as LogEventHandler<PlayerBlockUsageGasUsageEventArgs>,
+            {
+                event: EVENT_BY_NAME.PlayerBundleGasUsage,
+                handler: ({ args: { playerIdx, gasUsed } }) => {
+                    this._gasByPlayer[this._playerIdsByIdx[playerIdx]] += gasUsed;
+                },
+            } as LogEventHandler<PlayerBundleGasUsageEventArgs>,
+            {
+                event: EVENT_BY_NAME.Mint,
+                handler: ({ args: { assetIdx, playerIdx, assetAmount } }) => {
+                    this._logger('mint', { playerIdx, assetIdx, assetAmount });
+                },
+            } as LogEventHandler<MintEventArgs>,
+            {
+                event: EVENT_BY_NAME.Burn,
+                handler: ({ args: { assetIdx, playerIdx, assetAmount } }) => {
+                    this._logger('burn', { playerIdx, assetIdx, assetAmount });
+                },
+            } as LogEventHandler<BurnEventArgs>,
+            {
+                event: EVENT_BY_NAME.Transfer,
+                handler: ({ args: { fromPlayerIdx, toPlayerIdx, assetIdx, assetAmount } }) => {
+                    this._logger('transfer', { fromPlayerIdx, toPlayerIdx, assetIdx, assetAmount });
+                },
+            } as LogEventHandler<TransferEventArgs>,
+            {
+                event: EVENT_BY_NAME.Swap,
+                handler: ({ args: { playerIdx, fromAssetIdx, toAssetIdx, fromAmount, toAmount } }) => {
+                    this._logger('swap', {
+                        playerIdx,
+                        fromAssetIdx,
+                        toAssetIdx,
+                        fromAmount,
+                        toAmount,
+                    });
+                },
+            } as LogEventHandler<SwapEventArgs>,
+            {
+                event: EVENT_BY_NAME.BundleSettled,
+                handler: ({ args: { playerIdx, success, bundle } }) => {
+                    this._logger('bundle_settled', { playerIdx, success, bundle });
+                },
+            } as LogEventHandler<BundleSettledEventArgs>,
+            {
+                event: EVENT_BY_NAME.BlockBuilt,
+                handler: ({ args: { builderIdx, bid } }) => {
+                    this._logger('block_built', { builderIdx, bid });
+                },
+            } as LogEventHandler<BlockBuiltEventArgs>,
+            {
+                event: EVENT_BY_NAME.EmptyBlock,
+                handler: ({ args: { }}) => {
+                    this._logger('empty_block', {});
+                },
+            } as LogEventHandler<EmptyBlockEventArgs>, 
         );
         return { isGameOver, timeTaken };
     }
@@ -238,20 +254,5 @@ export class MatchJob implements NodeJob<MatchResult> {
             functionName: functionName,
             args,
         }) as Promise<TResult>;
-    }
-
-    private _handleGameEvents(
-        logs: Log[],
-        handlers: { [eventName: string]: LogEventHandler; },
-    ): void {
-        handleLogEvents(
-            logs,
-            ALL_EVENTS,
-            ...Object.entries(handlers).map(([name, handler]) => ({
-                emitter: this._gameAddress!,
-                name,
-                handler,
-            })),
-        );
     }
 }

@@ -3,15 +3,16 @@ import "colors";
 import process from "process";
 import yargs from "yargs";
 import {
-    zeroHash,
     Hex,
     Address,
     keccak256,
+    toHex,
 } from "viem";
-import { Contest, SeasonInfo } from "./contest.js";
-import { MatchMaker } from "./matchmakers.js";
+import { getLastRevealedSeason, getSeasonKeys, getSeasonPlayers } from "./contest.js";
+import { MatchMaker } from "./matchmaker.js";
 import { LocalMatchPool } from './pools/local-match-pool.js';
 import { MatchPool } from "./pools/match-pool.js";
+import { decryptPlayerCode, deriveSeasonPublicKey } from "./encrypt.js";
 
 yargs(process.argv.slice(0)).command(
     '$0', 'run a tournament on the current (closed) season',
@@ -23,14 +24,20 @@ yargs(process.argv.slice(0)).command(
             desc: 'contest contract address',
             coerce: arg => arg as Hex,
         })
-        .option('season', { alias: 's', type: 'number', desc: 'override season index' })
-        .option('mode', { alias: 'm', type: 'string', choices: ['tournament', 'scrimmage'], default: 'tournament' })
+        .option('zksync', {
+            alias: 'z',
+            desc: 'use zksync network',
+        })
+        .option('mode', { alias: 'm', type: 'string', choices: ['tournament', 'scrimmage'], default: 'scrimmage' })
+        .option('season', { alias: 's', type: 'number', desc: 'explicit season index' })
+        .option('privateKey', { alias: 'k', type: 'string', coerce: s => toHex(s) })
     ,
     async argv => runTournament({
-        address: argv.address,
+        contestAddress: argv.address,
         mode: argv.mode == 'tournament' ? MatchMakingMode.Tournament : MatchMakingMode.Scrimmage,
-        seasonKeys: [],
         poolConfig: { workerCount: 4 },
+        szn: argv.season,
+        privateKey: argv.privateKey,
     }),
 ).argv;
 
@@ -42,11 +49,16 @@ interface RemotePoolConfig {
     // TODO
 }
 
+
 interface TournamentConfig {
-    address: Address;
-    seasonKeys: Hex[];
+    contestAddress: Address;
     mode: MatchMakingMode;
     poolConfig: LocalPoolConfig | RemotePoolConfig;
+}
+
+interface PrivateTournamentConfig extends TournamentConfig {
+    szn: number;
+    privateKey: Hex;
 }
 
 const SCRIMMAGE_MATCHMAKER_CONFIG = {
@@ -62,19 +74,53 @@ enum MatchMakingMode {
     Tournament = 'tournament',
 }
 
-async function runTournament(cfg: TournamentConfig) {
-    const contest = new Contest(cfg.address);
-    const season  = await contest.getCurrentSeasonInfo();
-    if (!season.publicKey) {
-        throw new Error('Season hasn\'t started.');
-    }
-    if (cfg.mode === MatchMakingMode.Tournament) {
-        if (!season.privateKey) {
-            throw new Error('Season still active.');
+function isPrivateTournamentConfig(cfg: TournamentConfig | PrivateTournamentConfig)
+    : cfg is PrivateTournamentConfig
+{
+    return typeof((cfg as any).szn) === 'number' && (cfg as any).privateKey;
+}
+
+async function runTournament(cfg: TournamentConfig | PrivateTournamentConfig) {
+    let szn: number;
+    let privateKey: Hex;
+    let publicKey: Hex;
+    if (isPrivateTournamentConfig(cfg)) {
+        szn = cfg.szn;
+        privateKey = cfg.privateKey;
+        publicKey = deriveSeasonPublicKey(privateKey);
+    } else {
+        const szn_ = await getLastRevealedSeason(cfg.contestAddress);
+        if (szn_ === null) {
+            throw new Error(`No season has been revealed yet.`);
         }
+        szn = szn_;
+        const keys = await getSeasonKeys(cfg.contestAddress, szn);
+        privateKey = keys.privateKey!;
+        publicKey = keys.publicKey!;
     }
-    const seed = keccak256(Buffer.from(season.publicKey));
-    const playerCodes = await contest.getActivePlayersForSeason(season);
+    const playerCodes = Object.assign({},
+        ...Object.entries(await getSeasonPlayers(cfg.contestAddress, szn))
+            .map(([id, { codeHash, encryptedAesKey, encryptedCode, iv }]) => {
+                let code: Hex;
+                try {
+                    code = decryptPlayerCode(
+                        privateKey,
+                        id as Hex,
+                        { encryptedAesKey, encryptedCode, iv },
+                    );
+                    if (keccak256(code) !== codeHash) {
+                        throw new Error(`Code hash does not match decrypted submission.`);
+                    }
+                } catch (err) {
+                    console.warn(`Failed to decrypt submission from ${id}:`, err);
+                    return {};
+                }
+                return { [id as Address]: code };
+            }),
+        );
+    console.log(`Running ${cfg.mode} for season ${szn}, ${Object.keys(playerCodes).length} players...`);
+
+    const seed = keccak256(Buffer.from(publicKey));
     const pool = await createMatchPool(cfg.poolConfig);
     const mm: MatchMaker = new MatchMaker({
         ...(cfg.mode === MatchMakingMode.Tournament
@@ -115,14 +161,8 @@ async function runTournament(cfg: TournamentConfig) {
             console.info(`Matches left: ${matchCount}...`);
         }
     }
-    const nextSeasonIdx = season.idx + 1;
-    await contest.beginNewSeason(
-        nextSeasonIdx,
-        mm.getScores()[0].address,
-        cfg.seasonKeys[nextSeasonIdx] ?? zeroHash,
-    );
+    console.log(`Scores: ${JSON.stringify(mm.getScores())}`);
 }
-
 
 function isLocalPoolConfig(cfg: LocalPoolConfig | RemotePoolConfig): cfg is LocalPoolConfig {
     return (cfg as LocalPoolConfig).workerCount !== undefined;

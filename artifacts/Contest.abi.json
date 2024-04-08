@@ -5,7 +5,7 @@
       {
         "name": "host",
         "type": "address",
-        "internalType": "address payable"
+        "internalType": "address"
       },
       {
         "name": "retirer",
@@ -23,19 +23,6 @@
   {
     "type": "receive",
     "stateMutability": "payable"
-  },
-  {
-    "type": "function",
-    "name": "ADMIN",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -65,6 +52,19 @@
   },
   {
     "type": "function",
+    "name": "RETIRER",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "claim",
     "inputs": [
       {
@@ -80,6 +80,19 @@
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "closeSeason",
+    "inputs": [
+      {
+        "name": "seasonIdx",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
   },
   {
     "type": "function",
@@ -115,31 +128,21 @@
   },
   {
     "type": "function",
-    "name": "endSeason",
-    "inputs": [
+    "name": "currentSeasonPrize",
+    "inputs": [],
+    "outputs": [
       {
-        "name": "seasonIdx",
-        "type": "uint32",
-        "internalType": "uint32"
-      },
-      {
-        "name": "seasonPrivKey",
-        "type": "bytes",
-        "internalType": "bytes"
+        "name": "prize",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
-    "outputs": [],
-    "stateMutability": "payable"
+    "stateMutability": "view"
   },
   {
     "type": "function",
-    "name": "getPlayerCodeHash",
+    "name": "isRegisteredPlayer",
     "inputs": [
-      {
-        "name": "seasonIdx",
-        "type": "uint32",
-        "internalType": "uint32"
-      },
       {
         "name": "player",
         "type": "address",
@@ -148,16 +151,40 @@
     ],
     "outputs": [
       {
-        "name": "codeHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
   },
   {
     "type": "function",
-    "name": "getSeasonPlayerCodeCount",
+    "name": "operators",
+    "inputs": [
+      {
+        "name": "player",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "operator",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "isPermitted",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "playerCodeCount",
     "inputs": [
       {
         "name": "seasonIdx",
@@ -176,37 +203,24 @@
   },
   {
     "type": "function",
-    "name": "getSeasonState",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint8",
-        "internalType": "enum SeasonState"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getWinner",
+    "name": "playerCodeHash",
     "inputs": [
       {
         "name": "seasonIdx",
         "type": "uint32",
         "internalType": "uint32"
+      },
+      {
+        "name": "player",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "outputs": [
       {
-        "name": "winner",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "unclaimedPrize_",
-        "type": "uint96",
-        "internalType": "uint96"
+        "name": "codeHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "stateMutability": "view"
@@ -247,6 +261,11 @@
     "type": "function",
     "name": "register",
     "inputs": [
+      {
+        "name": "player",
+        "type": "address",
+        "internalType": "address"
+      },
       {
         "name": "confirmation",
         "type": "tuple",
@@ -290,7 +309,62 @@
       {
         "name": "player",
         "type": "address",
-        "internalType": "address payable"
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "revealSeasonKey",
+    "inputs": [
+      {
+        "name": "seasonIdx",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "seasonPrivKey",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "seasonState",
+    "inputs": [
+      {
+        "name": "seasonIdx",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "enum SeasonState"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "setOperator",
+    "inputs": [
+      {
+        "name": "operator",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "permitted",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "outputs": [],
@@ -327,6 +401,11 @@
         "name": "seasonIdx",
         "type": "uint32",
         "internalType": "uint32"
+      },
+      {
+        "name": "player",
+        "type": "address",
+        "internalType": "address"
       },
       {
         "name": "codeHash",
@@ -366,6 +445,30 @@
     "outputs": [
       {
         "name": "",
+        "type": "uint96",
+        "internalType": "uint96"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "winner",
+    "inputs": [
+      {
+        "name": "seasonIdx",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "winner_",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "unclaimedPrize_",
         "type": "uint96",
         "internalType": "uint96"
       }
@@ -416,6 +519,31 @@
             "internalType": "bytes12"
           }
         ]
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OperatorSet",
+    "inputs": [
+      {
+        "name": "player",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "operator",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "permitted",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
       }
     ],
     "anonymous": false
@@ -474,6 +602,19 @@
   {
     "type": "event",
     "name": "SeasonClosed",
+    "inputs": [
+      {
+        "name": "season",
+        "type": "uint32",
+        "indexed": true,
+        "internalType": "uint32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SeasonRevealed",
     "inputs": [
       {
         "name": "season",
@@ -546,7 +687,17 @@
   },
   {
     "type": "error",
+    "name": "AlreadyRegisteredError",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "ConfirmationConsumedError",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidCodeHashError",
     "inputs": []
   },
   {
@@ -557,6 +708,11 @@
   {
     "type": "error",
     "name": "InvalidKeyError",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidPlayerError",
     "inputs": []
   },
   {
@@ -577,6 +733,11 @@
   {
     "type": "error",
     "name": "PlayerSubmissionError",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "PreviousSeasonNotRevealedError",
     "inputs": []
   },
   {
