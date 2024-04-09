@@ -10,5 +10,5 @@
         "skipLibCheck": true,
         "resolveJsonModule": true,
     },
-    "include": ["src/**.ts", "test/**.t.ts", "src/pools/local-node-cluster.ts", "src/pools/match.ts"]
+    "include": ["src/**.ts", "test/**.t.ts"]
 }

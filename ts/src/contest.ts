@@ -1,25 +1,26 @@
-import process from "process";
-import CONTEST_ABI from "../../artifacts/Contest.abi.json";
-import { AbiEvent } from "abitype";
+import CONTEST_ARTIFACT from '../../artifacts/Contest.json' with { type: 'json' };
+import { AbiEvent } from 'abitype';
 import {
     Hex,
     Address,
-    http,
+    Log, 
     createPublicClient,
     decodeEventLog,
     DecodeEventLogReturnType,
-} from "viem";
-// import { zkSync } from "viem/chains";
-import { EncryptedCodeSubmission } from "./encrypt.js";
-import { LogEventHandler, handleLogEvents, sortLogs } from "./evm-utils.js";
+    PublicClient,
+} from 'viem';
+// import { zkSync } from 'viem/chains';
+import { EncryptedCodeSubmission } from './encrypt.js';
+import { LogEventHandler, handleLogEvents, sortLogs } from './evm-utils.js';
 
+const CONTEST_ABI = CONTEST_ARTIFACT.abi;
 const EVENTS = CONTEST_ABI.filter(e => e.type === 'event') as AbiEvent[]
 const RETIRED_EVENT = EVENTS.find(e => e.name === 'Retired');
 const CODE_COMMITED_EVENT = EVENTS.find(e => e.name === 'CodeCommited');
 const SEASON_STARTED_EVENT = EVENTS.find(e => e.name === 'SeasonStarted');
 const SEASON_REVEALED_EVENT = EVENTS.find(e => e.name === 'SeasonRevealed');
 
-enum SeasonState {
+export enum SeasonState {
     Inactive = 0,
     Started = 1,
     Closed = 2,
@@ -47,16 +48,16 @@ interface SeasonRevealedEventArgs extends DecodeEventLogReturnType {
     privateKey: Hex;
 }
 
-const CLIENT = createPublicClient({ transport: http(process.env.RPC_URL, { retryCount: 2 }) });
-
-export async function getLastRevealedSeason(contestAddress: Address): Promise<number | null> {    
-    let szn = Number(await CLIENT.readContract({
+export async function getLastRevealedSeason(client: PublicClient, contestAddress: Address)
+: Promise<number | null>
+{
+    let szn = Number(await client.readContract({
         address: contestAddress,
         abi: CONTEST_ABI,
         functionName: 'currentSeasonIdx',
         args: [],
     }));
-    const state = Number(await CLIENT.readContract({
+    const state = Number(await client.readContract({
         address: contestAddress,
         abi: CONTEST_ABI,
         functionName: 'seasonState',
@@ -71,63 +72,73 @@ export async function getLastRevealedSeason(contestAddress: Address): Promise<nu
     return szn;
 }
 
-export async function getSeasonKeys(contestAddress: Address, szn: number)
+export async function getCurrentSeason(client: PublicClient, contestAddress: Address)
+: Promise<number | null>
+{
+    let szn = Number(await client.readContract({
+        address: contestAddress,
+        abi: CONTEST_ABI,
+        functionName: 'currentSeasonIdx',
+        args: [],
+    }));
+    const state = Number(await client.readContract({
+        address: contestAddress,
+        abi: CONTEST_ABI,
+        functionName: 'seasonState',
+        args: [szn],
+    }));
+    if (state === SeasonState.Inactive) {
+        return null;
+    }
+    return szn;
+}
+
+export async function getSeasonKeys(client: PublicClient, contestAddress: Address, szn: number, startBlock?: number)
     : Promise<{ publicKey: Hex | null; privateKey: Hex | null; }>
 {
     let [publicKey, privateKey] = await Promise.all([
         (async () => {
-            const [ log ] = await CLIENT.getLogs({
+            const [ log ] = await client.getLogs({
                 address: contestAddress,
                 event: SEASON_STARTED_EVENT,
                 args: { season: BigInt(szn) },
+                fromBlock: startBlock ? BigInt(startBlock) : 'earliest',
             });
             if (!log) {
                 return null;
             }
-            decodeEventLog({
-                abi: [ SEASON_STARTED_EVENT ],
-                data: log.data,
-                topics: log.topics,
-            })
-            return ((decodeEventLog({
-                abi: [ SEASON_STARTED_EVENT ],
-                data: log.data,
-                topics: log.topics,
-            }) as any)?.args as SeasonStartedEventArgs)?.publicKey;
+            return ((log as any).args as SeasonStartedEventArgs)?.publicKey;
         })(),
         (async () => {
-            const [ log ] = await CLIENT.getLogs({
+            const [ log ] = await client.getLogs({
                 address: contestAddress,
                 event: SEASON_REVEALED_EVENT,
                 args: { season: BigInt(szn) },
+                fromBlock: startBlock ? BigInt(startBlock) : 'earliest',
             });
             if (!log) {
                 return null;
             }
-            return ((decodeEventLog({
-                abi: [ SEASON_REVEALED_EVENT ],
-                data: log.data,
-                topics: log.topics,
-            }) as any)?.args as SeasonRevealedEventArgs)?.privateKey;
+            return ((log as any).args as SeasonRevealedEventArgs)?.privateKey;
         })(),
     ]);
     return { publicKey, privateKey };
 }
 
-export async function getSeasonPlayers(contestAddress: Address, szn: number)
+export async function getSeasonPlayers(client: PublicClient, contestAddress: Address, szn: number)
     : Promise<{ [player: Address]: { codeHash: Hex; } & EncryptedCodeSubmission }>
 {
     const logs = sortLogs((await Promise.all([
-        this._readClient.getLogs({
+        client.getLogs({
             address: contestAddress,
             event: CODE_COMMITED_EVENT,
             args: { season: BigInt(szn) },
         }),
-        this._readClient.getLogs({
+        client.getLogs({
             address: contestAddress,
             event: RETIRED_EVENT,
         }),
-    ])), true);
+    ])).flat(1), true);
     const commits = {} as {
         [player: Address]: ({ codeHash: Hex; } & EncryptedCodeSubmission) | null
     };

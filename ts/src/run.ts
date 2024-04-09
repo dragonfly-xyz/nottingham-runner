@@ -1,18 +1,23 @@
-import "dotenv";
-import "colors";
-import process from "process";
-import yargs from "yargs";
+import dotenv from 'dotenv';
+dotenv.config();
+import 'colors';
+import process from 'process';
+import yargs from 'yargs';
 import {
     Hex,
     Address,
     keccak256,
     toHex,
-} from "viem";
-import { getLastRevealedSeason, getSeasonKeys, getSeasonPlayers } from "./contest.js";
-import { MatchMaker } from "./matchmaker.js";
+    createPublicClient,
+    http,
+    Chain,
+} from 'viem';
+import { getLastRevealedSeason, getSeasonKeys, getSeasonPlayers } from './contest.js';
+import { MatchMaker } from './matchmaker.js';
 import { LocalMatchPool } from './pools/local-match-pool.js';
-import { MatchPool } from "./pools/match-pool.js";
-import { decryptPlayerCode, deriveSeasonPublicKey } from "./encrypt.js";
+import { MatchPool } from './pools/match-pool.js';
+import { decryptPlayerCode, deriveSeasonPublicKey } from './encrypt.js';
+import { zkSync, mainnet } from 'viem/chains';
 
 yargs(process.argv.slice(0)).command(
     '$0', 'run a tournament on the current (closed) season',
@@ -31,6 +36,7 @@ yargs(process.argv.slice(0)).command(
         .option('mode', { alias: 'm', type: 'string', choices: ['tournament', 'scrimmage'], default: 'scrimmage' })
         .option('season', { alias: 's', type: 'number', desc: 'explicit season index' })
         .option('privateKey', { alias: 'k', type: 'string', coerce: s => toHex(s) })
+        .option('rpc-url', { alias: 'r', type: 'string', default: process.env.RPC_URL })
     ,
     async argv => runTournament({
         contestAddress: argv.address,
@@ -38,6 +44,8 @@ yargs(process.argv.slice(0)).command(
         poolConfig: { workerCount: 4 },
         szn: argv.season,
         privateKey: argv.privateKey,
+        rpcUrl: argv.rpcUrl,
+        chain: (argv.zksync ? zkSync : mainnet) as Chain,
     }),
 ).argv;
 
@@ -49,11 +57,12 @@ interface RemotePoolConfig {
     // TODO
 }
 
-
 interface TournamentConfig {
+    rpcUrl: string;
     contestAddress: Address;
     mode: MatchMakingMode;
     poolConfig: LocalPoolConfig | RemotePoolConfig;
+    chain: Chain,
 }
 
 interface PrivateTournamentConfig extends TournamentConfig {
@@ -81,6 +90,8 @@ function isPrivateTournamentConfig(cfg: TournamentConfig | PrivateTournamentConf
 }
 
 async function runTournament(cfg: TournamentConfig | PrivateTournamentConfig) {
+    const client = createPublicClient({ chain: mainnet, transport: http(cfg.rpcUrl, { retryCount: 3 }) });
+
     let szn: number;
     let privateKey: Hex;
     let publicKey: Hex;
@@ -89,17 +100,17 @@ async function runTournament(cfg: TournamentConfig | PrivateTournamentConfig) {
         privateKey = cfg.privateKey;
         publicKey = deriveSeasonPublicKey(privateKey);
     } else {
-        const szn_ = await getLastRevealedSeason(cfg.contestAddress);
+        const szn_ = await getLastRevealedSeason(client, cfg.contestAddress);
         if (szn_ === null) {
             throw new Error(`No season has been revealed yet.`);
         }
         szn = szn_;
-        const keys = await getSeasonKeys(cfg.contestAddress, szn);
+        const keys = await getSeasonKeys(client, cfg.contestAddress, szn);
         privateKey = keys.privateKey!;
         publicKey = keys.publicKey!;
     }
     const playerCodes = Object.assign({},
-        ...Object.entries(await getSeasonPlayers(cfg.contestAddress, szn))
+        ...Object.entries(await getSeasonPlayers(client, cfg.contestAddress, szn))
             .map(([id, { codeHash, encryptedAesKey, encryptedCode, iv }]) => {
                 let code: Hex;
                 try {
