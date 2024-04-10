@@ -3,22 +3,18 @@ import { AbiEvent } from 'abitype';
 import {
     Hex,
     Address,
-    Log, 
-    createPublicClient,
-    decodeEventLog,
     DecodeEventLogReturnType,
     PublicClient,
 } from 'viem';
-// import { zkSync } from 'viem/chains';
 import { EncryptedCodeSubmission } from './encrypt.js';
 import { LogEventHandler, handleLogEvents, sortLogs } from './evm-utils.js';
 
 const CONTEST_ABI = CONTEST_ARTIFACT.abi;
 const EVENTS = CONTEST_ABI.filter(e => e.type === 'event') as AbiEvent[]
-const RETIRED_EVENT = EVENTS.find(e => e.name === 'Retired');
-const CODE_COMMITED_EVENT = EVENTS.find(e => e.name === 'CodeCommited');
-const SEASON_STARTED_EVENT = EVENTS.find(e => e.name === 'SeasonStarted');
-const SEASON_REVEALED_EVENT = EVENTS.find(e => e.name === 'SeasonRevealed');
+const RETIRED_EVENT = EVENTS.find(e => e.name === 'Retired')!;
+const CODE_COMMITTED_EVENT = EVENTS.find(e => e.name === 'CodeCommitted')!;
+const SEASON_STARTED_EVENT = EVENTS.find(e => e.name === 'SeasonStarted')!;
+const SEASON_REVEALED_EVENT = EVENTS.find(e => e.name === 'SeasonRevealed')!;
 
 export enum SeasonState {
     Inactive = 0,
@@ -46,6 +42,10 @@ interface SeasonStartedEventArgs {
 interface SeasonRevealedEventArgs extends DecodeEventLogReturnType {
     season: number;
     privateKey: Hex;
+}
+
+export interface SeasonPlayers {
+    [player: Address]: { codeHash: Hex; } & EncryptedCodeSubmission;
 }
 
 export async function getLastRevealedSeason(client: PublicClient, contestAddress: Address)
@@ -125,18 +125,20 @@ export async function getSeasonKeys(client: PublicClient, contestAddress: Addres
     return { publicKey, privateKey };
 }
 
-export async function getSeasonPlayers(client: PublicClient, contestAddress: Address, szn: number)
-    : Promise<{ [player: Address]: { codeHash: Hex; } & EncryptedCodeSubmission }>
+export async function getSeasonPlayers(client: PublicClient, contestAddress: Address, szn: number, startBlock?: number)
+    : Promise<SeasonPlayers>
 {
     const logs = sortLogs((await Promise.all([
         client.getLogs({
             address: contestAddress,
-            event: CODE_COMMITED_EVENT,
+            event: CODE_COMMITTED_EVENT,
             args: { season: BigInt(szn) },
+            fromBlock: startBlock ? BigInt(startBlock) : 'earliest',
         }),
         client.getLogs({
             address: contestAddress,
             event: RETIRED_EVENT,
+            fromBlock: startBlock ? BigInt(startBlock) : 'earliest',
         }),
     ])).flat(1), true);
     const commits = {} as {
@@ -145,9 +147,9 @@ export async function getSeasonPlayers(client: PublicClient, contestAddress: Add
     handleLogEvents(
         logs,
         {
-            event: CODE_COMMITED_EVENT,
+            event: CODE_COMMITTED_EVENT,
             handler: ({ args: { player, codeHash, submission } }) => {
-                if (player in commits) {
+                if (!(player in commits)) {
                     commits[player] = { codeHash, ...submission };
                 }
             },

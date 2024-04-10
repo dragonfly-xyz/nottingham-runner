@@ -6,7 +6,7 @@ import { Abi, HDAccount, Hex, PublicClient, TestClient, Transport, WalletClient,
 import CONTEST_ARTIFACT from '../../artifacts/Contest.json' with { type: 'json' };
 import { foundry } from 'viem/chains';
 import { waitForSuccessfulReceipt } from '../src/evm-utils.js';
-import { createSeasonKeys } from '../src/encrypt.js';
+import { createSeasonKeys, decryptPlayerCode, encryptPlayerCode } from '../src/encrypt.js';
 import { SeasonState, getCurrentSeason, getLastRevealedSeason, getSeasonKeys, getSeasonPlayers } from '../src/contest.js';
 import { randomBytes } from 'crypto';
 
@@ -53,8 +53,8 @@ describe.only('contest tests', () => {
         let accts;
         [registrar, ...accts] = [2, 0, 1]
             .map(idx => mnemonicToAccount(MNEMONIC, { addressIndex: idx }));
-        players = [...new Array(8)]
-            .map(() => createWalletClient({
+        players = [...new Array(3)]
+            .map(() => (createWalletClient as any)({
                 account: privateKeyToAccount(toHex(randomBytes(32))),
                 chain: foundry,
                 transport,
@@ -141,10 +141,27 @@ describe.only('contest tests', () => {
             .to.deep.eq({ ...SEASON_KEYS[1], privateKey: null });
     });
 
-    it('can fetch season players', async () => {
-        expect(await getSeasonPlayers(publicClient, contractAddress, 0)).to.deep.eq({});
-        // ...
+    it('can fetch and decrypt season players', async () => {
+        await assertSeasonPlayers(0, [], []);
+        let codes = players.map(() => toHex(randomBytes(1024)));
+        await Promise.all(players.map((p, i) => submitPlayerCode(0, p, codes[i])));
+        await assertSeasonPlayers(0, players.map(p => p.account.address), codes);
+        // Should ignore retired player.
+        await retirePlayer(players[1].account.address);
+        codes = players.map(() => toHex(randomBytes(1024)));
+        await Promise.all([0, 2].map(i => submitPlayerCode(0, players[i], codes[i])));
+        await assertSeasonPlayers(0, [0, 2].map(i => players[i].account.address), [0, 2].map(i => codes[i]));
     });
+
+    async function assertSeasonPlayers(szn: number, players_: Address[], plainCodes: Hex[]): Promise<void> {
+        const subs = await getSeasonPlayers(publicClient, contractAddress, szn);
+        expect(Object.keys(subs).length).to.eq(players_.length);
+        for (const [i, p] of players_.entries()) {
+            const code = decryptPlayerCode(SEASON_KEYS[0].privateKey, p, subs[p]);
+            expect(subs[p].codeHash).to.eq(keccak256(code));
+            expect(code).to.eq(plainCodes[i]);
+        }
+    }
 
     async function sign(acc: HDAccount, digest: Hex): Promise<{ v: number; r: Hex; s: Hex }> {
         const sig = acc.getHdKey().sign(toBytes(digest));
@@ -172,6 +189,25 @@ describe.only('contest tests', () => {
             address: contractAddress,
             functionName: 'register',
             args: [ addr, { expiry, nonce, r, s, v } ],
+            ...COMMON_WRITE_PARAMS,
+        }));
+    }
+
+    async function retirePlayer(player: Address): Promise<void> {
+        await waitForSuccessfulReceipt(publicClient, await retirer.writeContract({
+            address: contractAddress,
+            functionName: 'retire',
+            args: [player],
+            ...COMMON_WRITE_PARAMS,
+        }));
+    }
+
+    async function submitPlayerCode(szn: number, player: WalletClient, code: Hex): Promise<void> {
+        const encrypted = encryptPlayerCode(SEASON_KEYS[szn].publicKey, player.account.address, code);
+        await waitForSuccessfulReceipt(publicClient, await player.writeContract({
+            address: contractAddress,
+            functionName: 'submitCode',
+            args: [szn, player.account.address, keccak256(code), encrypted],
             ...COMMON_WRITE_PARAMS,
         }));
     }
