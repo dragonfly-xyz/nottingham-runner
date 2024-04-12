@@ -6,7 +6,7 @@ import {
     http,
     Chain,
 } from 'viem';
-import { getLastRevealedSeason, getSeasonKeys, getSeasonPlayers } from './contest.js';
+import { getSeasonKeys, getSeasonPlayers } from './contest.js';
 import { MatchMaker, ScoredPlayer } from './matchmaker.js';
 import { LocalMatchPool } from './pools/local-match-pool.js';
 import { Logger, MatchPool } from './pools/match-pool.js';
@@ -75,17 +75,17 @@ export async function runTournament(cfg: TournamentConfig | PrivateTournamentCon
 
     const szn = cfg.szn;;
     let seasonPrivateKey: Hex;
-    let publicKey: Hex;
+    let seasonPublicKey: Hex;
     if (isPrivateTournamentConfig(cfg)) {
         seasonPrivateKey = cfg.seasonPrivateKey;
-        publicKey = deriveSeasonPublicKey(seasonPrivateKey);
+        seasonPublicKey = deriveSeasonPublicKey(seasonPrivateKey);
     } else {
         const keys = await getSeasonKeys(client, cfg.contestAddress, szn);
         if (!keys.privateKey) {
             throw new Error(`Season ${szn} has not been revealed yet and no key was provided.`);
         }
         seasonPrivateKey = keys.privateKey!;
-        publicKey = keys.publicKey!;
+        seasonPublicKey = keys.publicKey!;
     }
     const playerCodes = Object.assign({},
         ...Object.entries(await getSeasonPlayers(client, cfg.contestAddress, szn))
@@ -111,7 +111,7 @@ export async function runTournament(cfg: TournamentConfig | PrivateTournamentCon
     
     logger('tournament_start', { mode: cfg.mode, season: szn, players: Object.keys(playerCodes) });
 
-    const seed = keccak256(Buffer.from(publicKey));
+    const seed = keccak256(Buffer.from(seasonPublicKey));
     const pool = await createMatchPool(cfg.poolConfig);
     const mm: MatchMaker = new MatchMaker({
         ...(cfg.mode === MatchMakingMode.Tournament
