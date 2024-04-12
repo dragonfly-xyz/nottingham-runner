@@ -80,11 +80,10 @@ export async function runTournament(cfg: TournamentConfig | PrivateTournamentCon
         seasonPrivateKey = cfg.seasonPrivateKey;
         publicKey = deriveSeasonPublicKey(seasonPrivateKey);
     } else {
-        const szn_ = await getLastRevealedSeason(client, cfg.contestAddress);
-        if (szn_ === null) {
-            throw new Error(`No season has been revealed yet.`);
-        }
         const keys = await getSeasonKeys(client, cfg.contestAddress, szn);
+        if (!keys.privateKey) {
+            throw new Error(`Season ${szn} has not been revealed yet and no key was provided.`);
+        }
         seasonPrivateKey = keys.privateKey!;
         publicKey = keys.publicKey!;
     }
