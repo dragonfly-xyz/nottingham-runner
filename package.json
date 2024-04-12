@@ -1,0 +1,41 @@
+{
+  "name": "nottingham-runner",
+  "version": "1.0.0",
+  "description": "",
+  "main": "js/ts/src/lib.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node --enable-source-maps js/run.js",
+    "test": "mocha -n enable-source-maps -n openssl-legacy-provider 'js/ts/test/**.t.?js' --timeout 0 -b"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dragonfly-xyz/nottingham-runner.git"
+  },
+  "author": "Lawrence Forman <me@merklejerk.com>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/dragonfly-xyz/nottingham-runner/issues"
+  },
+  "homepage": "https://github.com/dragonfly-xyz/nottingham-runner#readme",
+  "devDependencies": {
+    "@stdlib/math-base-special-erf": "^0.2.3",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.11.16",
+    "@types/yargs": "^17.0.32",
+    "chai": "^5.1.0",
+    "esbuild": "^0.20.0",
+    "mocha": "^10.3.0",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "colors": "^1.4.0",
+    "dotenv": "^16.4.4",
+    "openskill": "^3.1.0",
+    "viem": "^2.9.13",
+    "yargs": "^17.7.2"
+  }
+}

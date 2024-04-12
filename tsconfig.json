@@ -2,13 +2,14 @@
     "compilerOptions": {
         "module": "NodeNext",
         "moduleResolution": "NodeNext",
-        "allowJs": false,
+        "target": "ESNext",
+        "allowJs": true,
         "sourceMap": true,
         "outDir": "js",
-        "esModuleInterop": true,
         "allowSyntheticDefaultImports": true,
         "skipLibCheck": true,
         "resolveJsonModule": true,
+        "declaration": true,
     },
-    "include": ["src/**.ts", "test/**.t.ts"]
+    "include": ["src/**.ts", "test/**.t.ts", "test/**.t.mts"]
 }

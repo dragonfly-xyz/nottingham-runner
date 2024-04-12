@@ -1,15 +1,15 @@
 import {
+    AbiEvent,
     Address,
     Hex,
     PublicClient,
     WalletClient,
 } from "viem";
-import { AbiEvent } from "abitype";
-import GAME_DEPLOYER_ARTIFACT from "../../../artifacts/GameDeployer.json" with { type: "json" };
-import GAME_ABI from "../../../artifacts/Game.abi.json" with { type: "json" };
-import { LogEventHandler, handleLogEvents, waitForSuccessfulReceipt } from "../evm-utils.js";
-import { NodeInfo, NodeJob } from "../node.js";
-import { MatchResult, Logger, PlayerInfos } from './match-pool.js';
+import GAME_DEPLOYER_ARTIFACT from "../artifacts/GameDeployer.json";
+import GAME_ABI from "../artifacts/Game.abi.json";
+import { LogEventHandler, handleLogEvents, waitForSuccessfulReceipt } from "./evm-utils.js";
+import { NodeInfo, NodeJob } from "./node.js";
+import { MatchResult, Logger, PlayerInfos } from './pools/match-pool.js';
 
 const ALL_EVENTS = [...GAME_ABI, ...GAME_DEPLOYER_ARTIFACT.abi].filter(o => o.type === 'event') as AbiEvent[];
 const EVENT_BY_NAME = Object.assign({}, ...ALL_EVENTS.map(e => ({ [e.name]: e })));

@@ -1,5 +1,5 @@
-import CONTEST_ARTIFACT from '../../artifacts/Contest.json' with { type: 'json' };
-import { AbiEvent } from 'abitype';
+import CONTEST_ARTIFACT from '../artifacts/Contest.json';
+import { AbiEvent } from 'viem';
 import {
     Hex,
     Address,

@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { EvmNode } from "../src/node.js";
-import { MatchJob } from "../src/pools/match.js";
+import { MatchJob } from "../src/match.js";
 import crypto from "crypto";
 import { toHex } from "viem";
 
@@ -42,7 +42,7 @@ describe('match tests', () => {
 
     it('can run a match with failing to deploy player', async () => {
         const seed = toHex(crypto.randomBytes(32));
-        const failedDeploys = [];
+        const failedDeploys = [] as string[];
         const job = new MatchJob(
             seed,
             {
@@ -51,7 +51,7 @@ describe('match tests', () => {
             },
             (name, data) => {
                 if (name === 'create_player_failed') {
-                    failedDeploys.push(data.player);
+                    failedDeploys.push(data!.player);
                 }
             },
         );
@@ -89,7 +89,7 @@ describe('match tests', () => {
                 if (name === 'game_over') {
                     gameOverLogData = data;
                 } else if (name === 'round_played') {
-                    console.log(data.round, data.gas);
+                    console.log(data!.round, data!.gas);
                 }
             },
         );

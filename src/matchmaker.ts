@@ -1,6 +1,7 @@
 import { Address } from "viem";
 import { Prng } from "./prng.js";
-import oskill, { ordinal } from "openskill";
+import * as oskill from "openskill";
+import { ordinal } from "openskill";
 
 export interface ScoredPlayer {
     address: Address;

@@ -1,6 +1,6 @@
 
 import {
-    Abi,
+    AbiEvent,
     Address,
     Hex,
     Log,
@@ -9,7 +9,6 @@ import {
     decodeEventLog,
     isAddressEqual,
 } from "viem";
-import { AbiEvent } from "abitype";
 
 export interface LogEventHandlerData<TArgs extends {} = {}> {
     logIndex: number;

@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 import { PlayerRankings, MatchMaker, MatchMakerConfig, MATCH_SEATS } from '../src/matchmaker.js';
-import * as mathjs from 'mathjs';
+import erf from '@stdlib/math-base-special-erf';
 
 function cdf(x: number, mean: number = 0.5, std: number = 1/3): number {
-    return (1 - mathjs.erf((mean - x) / (Math.sqrt(2) * std))) / 2;
+    return (1 - erf((mean - x) / (Math.sqrt(2) * std))) / 2;
 }
 
 class NormalPlayers {
