@@ -2,14 +2,14 @@
   "name": "nottingham-runner",
   "version": "1.0.0",
   "description": "",
-  "main": "js/ts/src/lib.js",
+  "main": "js/src/lib.js",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
     "build": "tsc",
-    "tournament": "node --enable-source-maps js/cli.js --mode tournament",
-    "scrimmage": "node --enable-source-maps js/cli.js --mode scrimmage ",
+    "tournament": "node --enable-source-maps js/src/cli.js --mode tournament",
+    "scrimmage": "node --enable-source-maps js/src/cli.js --mode scrimmage ",
     "test": "mocha -n enable-source-maps -n openssl-legacy-provider 'js/ts/test/**.t.?js' --timeout 0 -b"
   },
   "repository": {
