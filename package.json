@@ -10,7 +10,7 @@
     "build": "tsc",
     "tournament": "node --enable-source-maps js/src/cli.js --mode tournament",
     "scrimmage": "node --enable-source-maps js/src/cli.js --mode scrimmage ",
-    "test": "mocha -n enable-source-maps -n openssl-legacy-provider 'js/ts/test/**.t.?js' --timeout 0 -b"
+    "test": "mocha -n enable-source-maps -n openssl-legacy-provider 'js/test/**.t.?js' --timeout 0 -b"
   },
   "repository": {
     "type": "git",

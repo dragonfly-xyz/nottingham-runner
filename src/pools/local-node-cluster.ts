@@ -39,8 +39,7 @@ export class LocalNodeCluster extends EventEmitter {
             qj.accept = accept;
             qj.reject = reject;
         });
-        this._queue.push(qj);
-        if (this.queueSize === 0) {
+        if (this._queue.push(qj) === 1) {
             this._runLoop();
         }
         return qj.promise;

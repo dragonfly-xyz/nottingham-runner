@@ -24,7 +24,7 @@ export interface NodeJob<TResult extends any = void> {
 
 export class EvmNode {
     public static async create(): Promise<EvmNode> {
-        const port = 9000 + Math.floor(Math.random() * 10e3);
+        const port = 9000 + Math.floor(Math.random() * 32e3);
         const proc = spawn(
             'anvil',
             [

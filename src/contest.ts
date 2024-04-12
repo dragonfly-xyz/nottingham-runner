@@ -102,7 +102,7 @@ export async function getSeasonKeys(client: PublicClient, contestAddress: Addres
             const [ log ] = await client.getLogs({
                 address: contestAddress,
                 event: SEASON_STARTED_EVENT,
-                args: { season: BigInt(szn) },
+                args: { season: szn },
                 fromBlock: startBlock ? BigInt(startBlock) : 'earliest',
             });
             if (!log) {
@@ -114,7 +114,7 @@ export async function getSeasonKeys(client: PublicClient, contestAddress: Addres
             const [ log ] = await client.getLogs({
                 address: contestAddress,
                 event: SEASON_REVEALED_EVENT,
-                args: { season: BigInt(szn) },
+                args: { season: szn },
                 fromBlock: startBlock ? BigInt(startBlock) : 'earliest',
             });
             if (!log) {
@@ -126,14 +126,17 @@ export async function getSeasonKeys(client: PublicClient, contestAddress: Addres
     return { publicKey, privateKey };
 }
 
-export async function getSeasonPlayers(client: PublicClient, contestAddress: Address, szn: number, startBlock?: number)
-    : Promise<SeasonPlayers>
-{
+export async function getSeasonPlayers(
+    client: PublicClient,
+    contestAddress: Address,
+    szn: number,
+    startBlock?: number,
+) : Promise<SeasonPlayers> {
     const logs = sortLogs((await Promise.all([
         client.getLogs({
             address: contestAddress,
             event: CODE_COMMITTED_EVENT,
-            args: { season: BigInt(szn) },
+            args: { season: szn },
             fromBlock: startBlock ? BigInt(startBlock) : 'earliest',
         }),
         client.getLogs({

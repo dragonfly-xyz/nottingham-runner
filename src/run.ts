@@ -108,6 +108,10 @@ export async function runTournament(cfg: TournamentConfig | PrivateTournamentCon
                 return { [id as Address]: code };
             }),
         );
+    if (Object.keys(playerCodes).length === 0) {
+        logger('tournament_cancelled', {mode: cfg.mode, season: szn, reason: 'no players' });
+        return [];
+    }
     
     logger('tournament_start', { mode: cfg.mode, season: szn, players: Object.keys(playerCodes) });
 
