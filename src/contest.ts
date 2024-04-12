@@ -24,13 +24,14 @@ export enum SeasonState {
 }
 
 interface CodeCommittedEventArgs {
-    season: bigint;
+    season: number;
     player: Address;
     codeHash: Hex;
     submission: EncryptedCodeSubmission;
 }
 
 interface RetiredEventArgs {
+    season: number;
     player: Address;
 }
 
@@ -156,8 +157,10 @@ export async function getSeasonPlayers(client: PublicClient, contestAddress: Add
         } as LogEventHandler<CodeCommittedEventArgs>,
         { 
             event: RETIRED_EVENT,
-            handler: ({ args: { player } }) => {
-                commits[player] = null;
+            handler: ({ args: { season, player } }) => {
+                if (season <= szn) {
+                    commits[player] = null;
+                }
             },
         } as LogEventHandler<RetiredEventArgs>,
     )

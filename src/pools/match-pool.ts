@@ -7,6 +7,7 @@ export interface PlayerInfos {
 }
 
 export interface RunMatchParams {
+    id: string;
     seed: Hex;
     players: PlayerInfos;
     logger?: Logger;

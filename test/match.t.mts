@@ -23,6 +23,7 @@ describe('match tests', () => {
         const seed = toHex(crypto.randomBytes(32));
         let gameOverLogData;
         const job = new MatchJob(
+            'foo',
             seed,
             {
                 ['a']: { bytecode: EMTPY_BYTECODE },
@@ -44,6 +45,7 @@ describe('match tests', () => {
         const seed = toHex(crypto.randomBytes(32));
         const failedDeploys = [] as string[];
         const job = new MatchJob(
+            'foo',
             seed,
             {
                 ['a']: { bytecode: EMTPY_BYTECODE },
@@ -63,6 +65,7 @@ describe('match tests', () => {
     it('can run a match with failing player', async () => {
         const seed = toHex(crypto.randomBytes(32));
         const job = new MatchJob(
+            'foo',
             seed,
             {
                 ['a']: { bytecode: EMTPY_BYTECODE },
@@ -78,6 +81,7 @@ describe('match tests', () => {
         const seed = toHex(crypto.randomBytes(32));
         let gameOverLogData;
         const job = new MatchJob(
+            'foo',
             seed,
             {
                 ['a']: { bytecode: ETERNAL_PLAYER_BYTECODE },

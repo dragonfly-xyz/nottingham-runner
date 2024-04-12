@@ -56,15 +56,18 @@ export class MatchJob implements NodeJob<MatchResult> {
     private _client?: PublicClient;
     private _wallet?: WalletClient;
     private _gasLimit?: number;
+    private readonly _logger: Logger;
     private readonly _gasByPlayer: { [id: string]: number };
     private readonly _playerIdsByIdx: string[];
 
     public constructor(
+        private readonly id: string,
         private readonly _seed: Hex,
         private readonly _players: PlayerInfos,
-        private readonly _logger: Logger = DEFAULT_LOGGER,
+        logger: Logger = DEFAULT_LOGGER,
         private readonly _timeout: number = 10 * 60e3,
     ) {
+        this._logger = (name, data) => logger(name, { ...data, matchId: this.id });
         this._playerIdsByIdx = Object.keys(_players);
         this._gasByPlayer = Object.assign(
             {},
