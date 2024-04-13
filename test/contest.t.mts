@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { ChildProcess, spawn } from 'child_process';
 import { Address, mnemonicToAccount, generateMnemonic, english, privateKeyToAccount } from 'viem/accounts';
-import { Abi, HDAccount, Hex, PublicClient, TestClient, Transport, WalletClient, bytesToBigInt, createPublicClient, createTestClient, createWalletClient, http, isAddressEqual, keccak256, padBytes, recoverAddress, toBytes, toHex, zeroAddress } from 'viem';
+import { HDAccount, Hex, PublicClient, TestClient, Transport, WalletClient, bytesToBigInt, createPublicClient, createTestClient, createWalletClient, http, isAddressEqual, keccak256, padBytes, recoverAddress, toBytes, toHex, zeroAddress } from 'viem';
 import CONTEST_ARTIFACT from '../artifacts/Contest.json' with { type: 'json' };
 import { foundry } from 'viem/chains';
 import { waitForSuccessfulReceipt } from '../src/evm-utils.js';
@@ -25,7 +25,7 @@ const COMMON_WRITE_PARAMS = {
     ...({} as any),
 };
 
-describe.only('contest tests', () => {
+describe('contest tests', () => {
     let anvilProc: ChildProcess;
     let host: WalletClient;
     let retirer: WalletClient;

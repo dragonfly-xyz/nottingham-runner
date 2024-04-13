@@ -59,8 +59,9 @@ export function handleLogEvents(
 export async function waitForSuccessfulReceipt(
     client: PublicClient,
     hash: Hex,
+    pollingInterval: number = 2e3,
 ): Promise<TransactionReceipt> {
-    const r = await client.waitForTransactionReceipt({ hash, timeout: 5e3 });
+    const r = await client.waitForTransactionReceipt({ hash, timeout: 0, pollingInterval, });
     if (r.status !== 'success') {
         throw new Error(`tx ${hash} failed`);
     }

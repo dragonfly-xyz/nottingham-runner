@@ -20,8 +20,8 @@ const EMPTY_PLAYER_RANKING_INFO: PlayerRankingInfo = {
 export const MATCH_SEATS = 4;
 
 function getScoresFromPlayerRankings(rankings: PlayerRankings): ScoredPlayer[] {
-    return Object.entries(rankings)
-        .map(([id, info]) => ({ address: id as Address, score: oskill.ordinal(info) }))
+    return rankings.getIds()
+        .map(id => ({ address: id as Address, score: rankings.getScore(id) }))
         .sort((a, b) => b.score - a.score);
 }
 
@@ -74,7 +74,7 @@ export class PlayerRankings {
 
 export type MatchMakerConfig = {
     seed: string;
-    matchesPerPlayerPerRound: number[];
+    matchesPerPlayerPerBracket: number[];
 } & (
         { players: string[]; rankings?: never; } |
         { rankings: PlayerRankings; players?: never; }
@@ -83,34 +83,34 @@ export type MatchMakerConfig = {
 export class MatchMaker {
     protected readonly _prng: Prng;
     protected readonly _rankings: PlayerRankings;
-    protected readonly _matchesPerPlayerPerRound: number[];
-    protected _roundIdx: number = 0;
+    protected readonly _matchesPerPlayerPerBracket: number[];
+    protected _bracketIdx: number = 0;
 
     public constructor(cfg: MatchMakerConfig) {
-        if (cfg.matchesPerPlayerPerRound.length < 1) {
+        if (cfg.matchesPerPlayerPerBracket.length < 1) {
             throw new Error('Invalid matchmaker config');
         }
-        this._matchesPerPlayerPerRound = cfg.matchesPerPlayerPerRound;
+        this._matchesPerPlayerPerBracket = cfg.matchesPerPlayerPerBracket;
         this._prng = new Prng(cfg.seed);
-        this._matchesPerPlayerPerRound = cfg.matchesPerPlayerPerRound;
+        this._matchesPerPlayerPerBracket = cfg.matchesPerPlayerPerBracket;
         this._rankings = cfg.rankings ?? new PlayerRankings(cfg.players);
     }
 
-    public get maxRounds(): number {
-        return this._matchesPerPlayerPerRound.length;
+    public get maxBrackets(): number {
+        return this._matchesPerPlayerPerBracket.length;
     }
 
-    public get roundIdx(): number {
-        return this._roundIdx;
+    public get bracketIdx(): number {
+        return this._bracketIdx;
     }
 
-    public getRoundMatches(): string[][] {
-        if (this._roundIdx >= this._matchesPerPlayerPerRound.length) {
+    public getBracketMatches(): string[][] {
+        if (this._bracketIdx >= this._matchesPerPlayerPerBracket.length) {
             return [];
         }
         const matches = [] as string[][];
-        for (let i = 0; i < this._matchesPerPlayerPerRound[this._roundIdx]; ++i) {
-            const playerIds = this._prng.shuffle(this.getRoundPlayers());
+        for (let i = 0; i < this._matchesPerPlayerPerBracket[this._bracketIdx]; ++i) {
+            const playerIds = this._prng.shuffle(this.getBracketPlayers());
             if (playerIds.length < MATCH_SEATS) {
                 throw new Error(`not enough players for a full match: ${playerIds.length}/${MATCH_SEATS}`);
             }
@@ -126,16 +126,16 @@ export class MatchMaker {
         return matches;
     }
    
-    public advanceRound(): void {
-        ++this._roundIdx;
+    public advanceBracket(): void {
+        ++this._bracketIdx;
     }
 
     public getAllPlayers(): string[] {
         return this._rankings.getIds();
     }
     
-    public getRoundPlayers(): string[] {
-        const minPlayerPercentile = 1 / (2 ** this._roundIdx);
+    public getBracketPlayers(): string[] {
+        const minPlayerPercentile = 1 / (2 ** this._bracketIdx);
         return this.getAllPlayers()
             .sort((a, b) => this._rankings.getScore(b) - this._rankings.getScore(a))
             .slice(0, Math.max(MATCH_SEATS, Math.ceil(this._rankings.playerCount * minPlayerPercentile)));
@@ -146,7 +146,7 @@ export class MatchMaker {
     }
 
     public isDone(): boolean {
-        return this._roundIdx >= this._matchesPerPlayerPerRound.length;
+        return this._bracketIdx >= this._matchesPerPlayerPerBracket.length;
     }
 
     public getScore(id: string): number {

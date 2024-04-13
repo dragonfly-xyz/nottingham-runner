@@ -1,6 +1,6 @@
 import { Hex } from 'viem';
 
-export type Logger = (name: string, data?: { [key: string]: any }) => void;
+export type Logger = (name: string, data: { [key: string]: any }) => void;
 
 export interface PlayerInfos {
     [id: string]: { bytecode: Hex; }
@@ -20,4 +20,5 @@ export interface MatchResult {
 
 export interface MatchPool {
     runMatch(params: RunMatchParams): Promise<MatchResult>;
+    finished(): Promise<void>;
 }

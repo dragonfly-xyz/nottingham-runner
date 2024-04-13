@@ -42,14 +42,9 @@ type EmptyBlockEventArgs = { round: number; };
 type SwapEventArgs = { playerIdx: number; fromAssetIdx: number; toAssetIdx: number; fromAmount: bigint; toAmount: bigint; };
 type BundleSettledEventArgs = { playerIdx: number; success: boolean; bundle: PlayerBundleEventParam };
 
+const RECEIPT_POLLING_INTERVAL = 100;
 
-const DEFAULT_LOGGER: Logger = (name, data) => {
-    if (data) {
-        console.debug(name, JSON.stringify(data));
-    } else {
-        console.debug(name);
-    }
-};
+const DEFAULT_LOGGER: Logger = () => {};
 
 export class MatchJob implements NodeJob<MatchResult> {
     private _gameAddress?: Address; 
@@ -118,6 +113,7 @@ export class MatchJob implements NodeJob<MatchResult> {
                     bytecode: GAME_DEPLOYER_ARTIFACT.bytecode.object as Hex,
                     args: [this._seed, this._playerIdsByIdx.map(id => this._players[id].bytecode)],
                 }),
+                RECEIPT_POLLING_INTERVAL,
             );
             handleLogEvents(
                 receipt.logs, 
@@ -125,7 +121,6 @@ export class MatchJob implements NodeJob<MatchResult> {
                     event: EVENT_BY_NAME.GameCreated,
                     handler: ({ args: { game: game_ } }) => {
                         this._gameAddress = game_;
-                        this._logger('game_created', { _players: this._playerIdsByIdx });
                     },
                     emitter: receipt.contractAddress,
                 } as LogEventHandler<GameCreatedEventArgs>,
@@ -139,10 +134,10 @@ export class MatchJob implements NodeJob<MatchResult> {
             if (!this._gameAddress) {
                 throw new Error(`Failed to create game.`);
             }
-            this._logger('created', { players: this._playerIdsByIdx });
+            this._logger('game_created', { players: this._playerIdsByIdx });
             return this._gameAddress;
         } catch (err: any) {
-            throw(`Failed to deploy game: ${err.message}`);
+            throw new Error(`Failed to deploy game: ${err.message}`);
         }
     }
 
@@ -158,6 +153,7 @@ export class MatchJob implements NodeJob<MatchResult> {
                 gasLimit: this._gasLimit!,
                 gasPrice: 0,
             }),
+            RECEIPT_POLLING_INTERVAL,
         );
         timeTaken = Date.now() - timeTaken;
         let isGameOver = false;
@@ -165,7 +161,7 @@ export class MatchJob implements NodeJob<MatchResult> {
             {
                 event: EVENT_BY_NAME.RoundPlayed,
                 handler: ({ args: { round } }) => {
-                    this._logger('round_played', { round, gas: Number(receipt.gasUsed) });
+                    this._logger('round_played', { round, gas: Number(receipt.gasUsed), timeTaken, });
                 },
             } as LogEventHandler<RoundPlayedEventArgs>,
             {
@@ -235,6 +231,18 @@ export class MatchJob implements NodeJob<MatchResult> {
                     this._logger('empty_block', {});
                 },
             } as LogEventHandler<EmptyBlockEventArgs>, 
+            {
+                event: EVENT_BY_NAME.BlockBid,
+                handler: ({ args: { builderIdx, bid }}) => {
+                    this._logger('block_bid', { builderIdx, bid });
+                },
+            } as LogEventHandler<BlockBidEventArgs>,
+            {
+                event: EVENT_BY_NAME.CreateBundleFailed,
+                handler: ({ args: { playerIdx, builderIdx }}) => {
+                    this._logger('create_bundle_failed', { playerIdx, builderIdx });
+                },
+            } as LogEventHandler<CreateBundleFailedEventArgs>,
         );
         return { isGameOver, timeTaken };
     }

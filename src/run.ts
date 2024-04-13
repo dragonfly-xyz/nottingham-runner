@@ -38,11 +38,11 @@ export interface PrivateTournamentConfig extends TournamentConfig {
 const DEFAULT_LOGGER = (() => {}) as Logger;
 
 const SCRIMMAGE_MATCHMAKER_CONFIG = {
-    matchesPerPlayerPerRound: [2, 3, 4],
+    matchesPerPlayerPerBracket: [3, 4, 5],
 };
 
 const TOURNAMENT_MATCHMAKER_CONFIG = {
-    matchesPerPlayerPerRound: [3, 4, 6, 10],
+    matchesPerPlayerPerBracket: [3, 4, 6, 10],
 };
 
 export enum MatchMakingMode {
@@ -87,7 +87,7 @@ export async function runTournament(cfg: TournamentConfig | PrivateTournamentCon
         seasonPrivateKey = keys.privateKey!;
         seasonPublicKey = keys.publicKey!;
     }
-    const playerCodes = Object.assign({},
+    const playerCodes: { [id: Address]: Hex } = Object.assign({},
         ...Object.entries(await getSeasonPlayers(client, cfg.contestAddress, szn))
             .map(([id, { codeHash, encryptedAesKey, encryptedCode, iv }]) => {
                 let code: Hex;
@@ -127,8 +127,9 @@ export async function runTournament(cfg: TournamentConfig | PrivateTournamentCon
     });
     while (!mm.isDone()) {
         let matchPromises = [] as Array<Promise<any>>;
-        const playersPerMatch = mm.getRoundMatches();
-        logger('round_start', { round: mm.roundIdx, players: mm.getRoundPlayers() });
+        const playersPerMatch = mm.getBracketMatches();
+        const bracket = mm.bracketIdx;
+        logger('bracket_start', { bracket: mm.bracketIdx, players: mm.getBracketPlayers() });
         for (const matchPlayers of playersPerMatch) {
             matchPromises.push((async () => {
                 const matchId = crypto.randomUUID();
@@ -139,21 +140,28 @@ export async function runTournament(cfg: TournamentConfig | PrivateTournamentCon
                         seed,
                         players: Object.assign(
                             {},
-                            ...matchPlayers.map(id => ({ bytecode: playerCodes[id] })),
+                            ...matchPlayers.map(id => ({ [id]: { bytecode: playerCodes[id] } })),
                         ),
-                        logger,
+                        logger: (name, data) => logger(name, { ...data, matchId, bracket }),
                     });
                     mm.rankMatchResult(
                         Object.keys(result.playerResults)
                         .sort((a, b) => result.playerResults[b].score - result.playerResults[a].score),
                     );
+                    logger('match_completed', {
+                        matchId,
+                        skill_scores: Object.assign({}, ...matchPlayers.map(p => ({ [p]: mm.getScore(p) }))),
+                    });
                 } catch (err) {
-                    logger('match_failed', { matchId });
+                    logger('match_failed', { matchId, error: err.message });
                     console.error(`Match with players ${matchPlayers.join(', ')} failed: `, err.message);
                 }
             })());
         }
         await Promise.all(matchPromises);
+        logger('bracket_completed', { bracket: mm.bracketIdx });
+        mm.advanceBracket();
     }
+    await pool.finished();
     return mm.getScores();
 }

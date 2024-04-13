@@ -9,7 +9,7 @@ const FAILING_DEPLOY_BYTECODE = '0xfe';
 const FAILING_PLAYER_BYTECODE = '0x60fe5f526001601ff3';
 const ETERNAL_PLAYER_BYTECODE = '0x625b5f565f526003601df3';
 
-describe('match tests', () => {
+describe.only('match tests', () => {
     let node: EvmNode;
 
     before(async () => {
@@ -53,7 +53,7 @@ describe('match tests', () => {
             },
             (name, data) => {
                 if (name === 'create_player_failed') {
-                    failedDeploys.push(data!.player);
+                    failedDeploys.push(data.player);
                 }
             },
         );
@@ -93,7 +93,7 @@ describe('match tests', () => {
                 if (name === 'game_over') {
                     gameOverLogData = data;
                 } else if (name === 'round_played') {
-                    console.log(data!.round, data!.gas);
+                    console.log(data.round, data.gas, data.timeTaken);
                 }
             },
         );

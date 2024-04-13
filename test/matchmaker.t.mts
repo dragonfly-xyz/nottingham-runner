@@ -69,7 +69,7 @@ class TestPlayerRankings extends PlayerRankings {
 describe('matchmaker tests', () => {
     describe('scrimmage', () => {
         const DEFAULT_SCRIMMAGE_CFG = {
-            matchesPerPlayerPerRound: [1, 2, 3],
+            matchesPerPlayerPerBracket: [1, 2, 3],
             seed: '',
         };
 
@@ -79,95 +79,95 @@ describe('matchmaker tests', () => {
                 ...DEFAULT_SCRIMMAGE_CFG,
                 players: players.players,
             });
-            let roundCount = 0;
-            for (; !mm.isDone(); ++roundCount) {
-                const playersPerMatch = mm.getRoundMatches();
+            let bracketCount = 0;
+            for (; !mm.isDone(); ++bracketCount) {
+                const playersPerMatch = mm.getBracketMatches();
                 for (const match of playersPerMatch) {
                     expect(match.every(id => players.isPlayer(id))).to.be.true;
                     expect(uniqueIds(match).length).to.eq(match.length);
                 }
-                mm.advanceRound();
+                mm.advanceBracket();
             }
-            expect(roundCount).to.eq(DEFAULT_SCRIMMAGE_CFG.matchesPerPlayerPerRound.length);
-            expect(mm.roundIdx).to.eq(roundCount);
+            expect(bracketCount).to.eq(DEFAULT_SCRIMMAGE_CFG.matchesPerPlayerPerBracket.length);
+            expect(mm.bracketIdx).to.eq(bracketCount);
         });
 
-        it('generates N matches per player per round', () => {
+        it('generates N matches per player per bracket', () => {
             const players = new NormalPlayers(100);
             const mm = new TestMatchMaker({
                 ...DEFAULT_SCRIMMAGE_CFG,
                 players: players.players,
             });
             while (!mm.isDone()) {
-                const playersPerMatch = mm.getRoundMatches();
-                const roundPlayers = mm.getRoundPlayers();
+                const playersPerMatch = mm.getBracketMatches();
+                const bracketPlayers = mm.getBracketPlayers();
                 const playerMatchCount =
-                    Object.assign({}, ...mm.getRoundPlayers().map(id => ({ [id]: 0 }))) as
+                    Object.assign({}, ...mm.getBracketPlayers().map(id => ({ [id]: 0 }))) as
                         { [id: string]: number };
                 for (const match of playersPerMatch) {
                     expect(match.every(id => players.isPlayer(id)), 'all match ids are valid players').to.be.true;
-                    expect(match.every(id => roundPlayers.includes(id)), 'all match ids are round players').to.be.true;
+                    expect(match.every(id => bracketPlayers.includes(id)), 'all match ids are bracket players').to.be.true;
                     expect(uniqueIds(match).length).to.eq(match.length);
                     for (const id of match) {
                         ++playerMatchCount[id];
                     }
                 }
-                const matchesPerPlayer = DEFAULT_SCRIMMAGE_CFG.matchesPerPlayerPerRound[mm.roundIdx];
+                const matchesPerPlayer = DEFAULT_SCRIMMAGE_CFG.matchesPerPlayerPerBracket[mm.bracketIdx];
                 expect(Object.values(playerMatchCount)
                     .every(c => c >= matchesPerPlayer), `all player counts >= ${matchesPerPlayer}`).to.be.true;
-                mm.advanceRound();
+                mm.advanceBracket();
             }
         });
        
-        it('keeps at least MATCH_SEATS count players in round', () => {
+        it('keeps at least MATCH_SEATS count players in bracket', () => {
             const players = new NormalPlayers(100);
             const mm = new TestMatchMaker({
                 ...DEFAULT_SCRIMMAGE_CFG,
-                matchesPerPlayerPerRound: [...new Array(Math.ceil(Math.log2(players.playerCount)))].map(() => 1),
+                matchesPerPlayerPerBracket: [...new Array(Math.ceil(Math.log2(players.playerCount)))].map(() => 1),
                 players: players.players,
             });
-            while (mm.roundIdx < mm.maxRounds - 1) {
-                expect(mm.getRoundPlayers().length).to.eq(
-                    Math.max(MATCH_SEATS, Math.ceil(players.playerCount / 2**mm.roundIdx)),
-                    'round players',
+            while (mm.bracketIdx < mm.maxBrackets - 1) {
+                expect(mm.getBracketPlayers().length).to.eq(
+                    Math.max(MATCH_SEATS, Math.ceil(players.playerCount / 2**mm.bracketIdx)),
+                    'bracket players',
                 );
-                mm.advanceRound();
+                mm.advanceBracket();
             }
-            expect(mm.getRoundPlayers().length).to.eq(MATCH_SEATS);
+            expect(mm.getBracketPlayers().length).to.eq(MATCH_SEATS);
         });
 
-        it('keeps at least MATCH_SEATS count players in round', () => {
+        it('keeps at least MATCH_SEATS count players in bracket', () => {
             const players = new NormalPlayers(100);
             const mm = new TestMatchMaker({
                 ...DEFAULT_SCRIMMAGE_CFG,
-                matchesPerPlayerPerRound: [...new Array(Math.ceil(Math.log2(players.playerCount)))].map(() => 1),
+                matchesPerPlayerPerBracket: [...new Array(Math.ceil(Math.log2(players.playerCount)))].map(() => 1),
                 players: players.players,
             });
-            while (mm.roundIdx < mm.maxRounds - 1) {
-                expect(mm.getRoundPlayers().length).to.eq(
-                    Math.max(MATCH_SEATS, Math.ceil(players.playerCount / 2**mm.roundIdx)),
-                    'round players',
+            while (mm.bracketIdx < mm.maxBrackets - 1) {
+                expect(mm.getBracketPlayers().length).to.eq(
+                    Math.max(MATCH_SEATS, Math.ceil(players.playerCount / 2**mm.bracketIdx)),
+                    'bracket players',
                 );
-                mm.advanceRound();
+                mm.advanceBracket();
             }
-            expect(mm.getRoundPlayers().length).to.eq(MATCH_SEATS);
+            expect(mm.getBracketPlayers().length).to.eq(MATCH_SEATS);
         });
 
-        it('round players have the highest scores', () => {
+        it('bracket players have the highest scores', () => {
             const players = new NormalPlayers(100);
             const rankings = new TestPlayerRankings(players.players);
             const mm = new TestMatchMaker({
                 ...DEFAULT_SCRIMMAGE_CFG,
-                matchesPerPlayerPerRound: [...new Array(Math.ceil(Math.log2(players.playerCount)))].map(() => 1),
+                matchesPerPlayerPerBracket: [...new Array(Math.ceil(Math.log2(players.playerCount)))].map(() => 1),
                 rankings,
             });
             for (const id of players.players) {
                 rankings.setRawScore(id, Math.random(), Math.random());
             }
-            const roundPlayers = mm.getRoundPlayers();
-            for (const [idx, id] of roundPlayers.entries()) {
-                for (let i = idx + 1; i < roundPlayers.length; ++i) {
-                    expect(rankings.getScore(roundPlayers[i])).to.be.lessThanOrEqual(rankings.getScore(id));
+            const bracketPlayers = mm.getBracketPlayers();
+            for (const [idx, id] of bracketPlayers.entries()) {
+                for (let i = idx + 1; i < bracketPlayers.length; ++i) {
+                    expect(rankings.getScore(bracketPlayers[i])).to.be.lessThanOrEqual(rankings.getScore(id));
                 }
             }
         });

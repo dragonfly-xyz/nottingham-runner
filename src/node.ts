@@ -6,6 +6,7 @@ import {
     createPublicClient,
     createWalletClient,
     http,
+    webSocket,
 } from "viem";
 import { foundry } from "viem/chains";
 
@@ -33,13 +34,22 @@ export class EvmNode {
                 '--gas-limit', BLOCK_GAS_LIMIT.toString(),
                 '--gas-price', '0',
                 '--code-size-limit', MAX_CODE_SIZE.toString(),
-                '--block-base-fee-per-gas', '0',
-                '--no-cors',
+                '--base-fee', '0',
+                '--hardfork', 'cancun',
                 '--silent',
                 '--mnemonic-random',
+                '--accounts', '1',
+                '--order', 'fifo',
                 '--prune-history',
             ],
+            { detached: false },
         );
+        // proc.stdout.on('data', d => {
+        //     process.stdout.write(d);
+        // })
+        // proc.stderr.on('data', d => {
+        //     process.stderr.write(d);
+        // })
         await new Promise<void>((accept, reject) => {
             proc.on('close', code => {
                 reject(new Error(`anvil process terminated early (code: ${code})`));
@@ -49,15 +59,21 @@ export class EvmNode {
             });
             setTimeout(accept, 500);
         });
-        proc.removeAllListeners();
-        proc.stdout.removeAllListeners();
-        const transport = http(`http://127.0.0.1:${port}`, { timeout: 30e3 });
+        const transport = webSocket(
+            `ws://127.0.0.1:${port}`,
+            {
+                timeout: 120e3,
+                retryCount: 1,
+                retryDelay: 500,
+            },
+        );
         const wallet = createWalletClient({
             transport,
             chain: foundry,
             account: (await createWalletClient({ transport }).getAddresses())[0],
+            cacheTime: 0,
         });
-        const client = (createPublicClient as any)({ transport }) as PublicClient; 
+        const client = (createPublicClient as any)({ cacheTime: 0, transport }) as PublicClient; 
         const initialStateDump = await createPublicClient({ transport })
             .request({ method: 'anvil_dumpState', params: [] }) as Hex;
         return new EvmNode({ proc, wallet, client, initialStateDump });
@@ -76,7 +92,6 @@ export class EvmNode {
         client: PublicClient;
         initialStateDump: Hex;
     }) {
-        
         this._proc = info.proc;
         this._wallet = info.wallet;
         this._client = info.client;
@@ -97,17 +112,21 @@ export class EvmNode {
             throw new Error(`Node ${this._proc.pid} already has a job running.`);
         }
         this._currentJob = job;
-        try {
-            return (async () => {
-                await this._client.request({ method: 'anvil_loadState', params: [this._initialStateDump] });
-                return job.run({ wallet: this._wallet, client: this._client, blockGasLimit: BLOCK_GAS_LIMIT });
-            })();
-        } catch (err) {
-            console.error(`Node job failed with: ${err?.message ?? err}`);
-            throw err;
-        } finally {
-            this._currentJob = undefined;
-        }
+        return (async () => {
+            await this._client.request({ method: 'anvil_loadState', params: [this._initialStateDump] });
+            try {
+                const res = await job.run({
+                    wallet: this._wallet,
+                    client: this._client,
+                    blockGasLimit: BLOCK_GAS_LIMIT,
+                });
+                return res;
+            } catch (err) {
+                console.error(`Node job failed with: ${err?.message ?? err}`);
+            } finally {
+                this._currentJob = undefined;
+            }
+        })();
     }
 
     public async request<TResult = void>(method: string, params: any[] = []): Promise<TResult> {

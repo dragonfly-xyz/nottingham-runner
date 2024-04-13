@@ -18,4 +18,8 @@ export class LocalMatchPool implements MatchPool {
             params.timeout,
         ));
     }
+
+    public async finished(): Promise<void> {
+        return this._cluster.shutdown();    
+    }
 }
