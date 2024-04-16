@@ -74,8 +74,7 @@ export async function getLastRevealedSeason(client: PublicClient, contestAddress
 }
 
 export async function getCurrentSeason(client: PublicClient, contestAddress: Address)
-: Promise<number | null>
-{
+: Promise<number | null> {
     let szn = Number(await client.readContract({
         address: contestAddress,
         abi: CONTEST_ABI,
@@ -92,6 +91,16 @@ export async function getCurrentSeason(client: PublicClient, contestAddress: Add
         return null;
     }
     return szn;
+}
+
+export async function getSeasonState(client: PublicClient, contestAddress: Address, szn: number)
+: Promise<SeasonState> {
+    return Number(await client.readContract({
+        address: contestAddress,
+        abi: CONTEST_ABI,
+        functionName: 'seasonState',
+        args: [szn],
+    }));
 }
 
 export async function getSeasonKeys(client: PublicClient, contestAddress: Address, szn: number, startBlock?: number)

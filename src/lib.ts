@@ -6,3 +6,6 @@ export * from './prng.js';
 export * from './evm-utils.js';
 export * from './match.js';
 export * from './pools/match-pool.js';
+export * from './pools/local-node-cluster.js';
+export * from './run.js';
+export { abi as CONTEST_ABI } from '../artifacts/Contest.json';

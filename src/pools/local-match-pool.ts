@@ -10,13 +10,13 @@ export class LocalMatchPool implements MatchPool {
     private constructor(private readonly _cluster: LocalNodeCluster) {}
 
     public runMatch(params: RunMatchParams): Promise<MatchResult> {
-        return this._cluster.run(new MatchJob(
-            params.id,
-            params.seed,
-            params.players,
-            params.logger,
-            params.timeout,
-        ));
+        return this._cluster.run(new MatchJob({
+            id: params.id,
+            seed: params.seed,
+            players: params.players,
+            logger: params.logger,
+            timeout: params.timeout,
+        }));
     }
 
     public async finished(): Promise<void> {

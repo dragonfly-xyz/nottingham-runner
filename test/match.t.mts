@@ -22,20 +22,20 @@ describe.only('match tests', () => {
     it('can run a match with empty players', async () => {
         const seed = toHex(crypto.randomBytes(32));
         let gameOverLogData;
-        const job = new MatchJob(
-            'foo',
+        const job = new MatchJob({
+            id: 'foo',
             seed,
-            {
+            players: {
                 ['a']: { bytecode: EMTPY_BYTECODE },
                 ['b']: { bytecode: EMTPY_BYTECODE },
                 ['c']: { bytecode: EMTPY_BYTECODE },
             },
-            (name, data) => {
+            logger: (name, data) => {
                 if (name === 'game_over') {
                     gameOverLogData = data;
                 }
             },
-        );
+    });
         const { playerResults } = await node.run(job);
         expect(gameOverLogData?.scores?.length).to.eq(3);
         expect(Object.keys(playerResults)).to.deep.eq(['a','b','c']);
@@ -44,19 +44,19 @@ describe.only('match tests', () => {
     it('can run a match with failing to deploy player', async () => {
         const seed = toHex(crypto.randomBytes(32));
         const failedDeploys = [] as string[];
-        const job = new MatchJob(
-            'foo',
+        const job = new MatchJob({
+            id: 'foo',
             seed,
-            {
+            players: {
                 ['a']: { bytecode: EMTPY_BYTECODE },
                 ['b']: { bytecode: FAILING_DEPLOY_BYTECODE },
             },
-            (name, data) => {
+            logger: (name, data) => {
                 if (name === 'create_player_failed') {
                     failedDeploys.push(data.player);
                 }
             },
-        );
+        });
         const { playerResults } = await node.run(job);
         expect(Object.keys(playerResults)).to.deep.eq(['a', 'b']);
         expect(failedDeploys).to.deep.eq(['b']);
@@ -64,15 +64,15 @@ describe.only('match tests', () => {
 
     it('can run a match with failing player', async () => {
         const seed = toHex(crypto.randomBytes(32));
-        const job = new MatchJob(
-            'foo',
+        const job = new MatchJob({
+            id: 'foo',
             seed,
-            {
+            players: {
                 ['a']: { bytecode: EMTPY_BYTECODE },
                 ['b']: { bytecode: FAILING_PLAYER_BYTECODE },
             },
-            () => {},
-        );
+            logger: () => {},
+        });
         const { playerResults } = await node.run(job);
         expect(Object.keys(playerResults)).to.deep.eq(['a', 'b']);
     });
@@ -80,23 +80,23 @@ describe.only('match tests', () => {
     it.skip('can run a match with eternal players', async () => {
         const seed = toHex(crypto.randomBytes(32));
         let gameOverLogData;
-        const job = new MatchJob(
-            'foo',
+        const job = new MatchJob({
+            id: 'foo',
             seed,
-            {
+            players: {
                 ['a']: { bytecode: ETERNAL_PLAYER_BYTECODE },
                 ['b']: { bytecode: ETERNAL_PLAYER_BYTECODE },
                 ['c']: { bytecode: ETERNAL_PLAYER_BYTECODE },
                 ['d']: { bytecode: ETERNAL_PLAYER_BYTECODE },
             },
-            (name, data) => {
+            logger: (name, data) => {
                 if (name === 'game_over') {
                     gameOverLogData = data;
                 } else if (name === 'round_played') {
                     console.log(data.round, data.gas, data.timeTaken);
                 }
             },
-        );
+        });
         const { playerResults } = await node.run(job);
         expect(Object.keys(playerResults)).to.deep.eq(['a', 'b', 'c', 'd']);
     });

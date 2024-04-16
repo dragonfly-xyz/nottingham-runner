@@ -5,10 +5,10 @@ import {
     WalletClient,
     createPublicClient,
     createWalletClient,
-    http,
     webSocket,
 } from "viem";
 import { foundry } from "viem/chains";
+import { env } from 'process';
 
 const BLOCK_GAS_LIMIT = 32e9;
 const MAX_CODE_SIZE = 0x8000;
@@ -24,10 +24,9 @@ export interface NodeJob<TResult extends any = void> {
 }
 
 export class EvmNode {
-    public static async create(): Promise<EvmNode> {
-        const port = 9000 + Math.floor(Math.random() * 32e3);
+    public static async create(port: number = 9090): Promise<EvmNode> {
         const proc = spawn(
-            'anvil',
+            env.ANVIL_BIN ?? 'anvil',
             [
                 '--host', '127.0.0.1',
                 '--port', port.toString(),
@@ -44,6 +43,7 @@ export class EvmNode {
             ],
             { detached: false },
         );
+        proc.unref();
         // proc.stdout.on('data', d => {
         //     process.stdout.write(d);
         // })

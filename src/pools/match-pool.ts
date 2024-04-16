@@ -20,5 +20,4 @@ export interface MatchResult {
 
 export interface MatchPool {
     runMatch(params: RunMatchParams): Promise<MatchResult>;
-    finished(): Promise<void>;
 }

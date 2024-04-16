@@ -11,8 +11,9 @@ interface QueuedJob<TResult extends any = void> {
 
 export class LocalNodeCluster extends EventEmitter {
     public static async create(workers: number = 5): Promise<LocalNodeCluster> {
+        const startPort = 9000 + Math.floor(Math.random() * 32e3);
         const nodes = await Promise.all(
-            [...new Array(workers)].map(() => EvmNode.create()),
+            [...new Array(workers)].map((_, i) => EvmNode.create(startPort + i)),
         );
         return new LocalNodeCluster(nodes);
     }

@@ -52,21 +52,31 @@ export class MatchJob implements NodeJob<MatchResult> {
     private _wallet?: WalletClient;
     private _gasLimit?: number;
     private readonly _logger: Logger;
+    private readonly _id: string;
+    private readonly _seed: Hex;
+    private readonly _players: PlayerInfos;
+    private readonly _timeout: number = 10 * 60e3;
     private readonly _gasByPlayer: { [id: string]: number };
     private readonly _playerIdsByIdx: string[];
 
-    public constructor(
-        private readonly id: string,
-        private readonly _seed: Hex,
-        private readonly _players: PlayerInfos,
-        logger: Logger = DEFAULT_LOGGER,
-        private readonly _timeout: number = 10 * 60e3,
-    ) {
-        this._logger = (name, data) => logger(name, { ...data, matchId: this.id });
-        this._playerIdsByIdx = Object.keys(_players);
+    public constructor(opts: {
+        id: string,
+        seed: Hex,
+        players: PlayerInfos,
+        logger?: Logger,
+        timeout?: number,
+    }) {
+        const { id, seed, players } = opts;
+        this._id = opts.id;
+        this._seed = opts.seed;
+        this._players = opts.players;
+        this._timeout = opts.timeout ?? 10 * 60e3;
+        const logger = opts.logger ?? DEFAULT_LOGGER;
+        this._logger = (name, data) => logger(name, { ...data, matchId: this._id });
+        this._playerIdsByIdx = Object.keys(opts.players);
         this._gasByPlayer = Object.assign(
             {},
-            ...Object.keys(_players).map(id => ({ [id]: 0 })),
+            ...Object.keys(opts.players).map(id => ({ [id]: 0 })),
         );
     }
 

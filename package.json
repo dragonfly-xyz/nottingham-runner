@@ -25,7 +25,7 @@
   "devDependencies": {
     "@stdlib/math-base-special-erf": "^0.2.3",
     "@types/mocha": "^10.0.6",
-    "@types/node": "^20.11.16",
+    "@types/node": "^20.12.7",
     "@types/yargs": "^17.0.32",
     "chai": "^5.1.0",
     "esbuild": "^0.20.0",
@@ -34,9 +34,8 @@
   },
   "dependencies": {
     "colors": "^1.4.0",
-    "dotenv": "^16.4.4",
     "openskill": "^3.1.0",
-    "viem": "^2.9.13",
+    "viem": "^2.9.18",
     "yargs": "^17.7.2"
   }
 }

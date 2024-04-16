@@ -11,18 +11,22 @@ export interface ScoredPlayer {
 interface PlayerRankingInfo {
     mu: number;
     sigma: number;
+    matchCount: number;
 }
 
 const EMPTY_PLAYER_RANKING_INFO: PlayerRankingInfo = {
-    ...oskill.rating(),
+    ...oskill.rating(), matchCount: 0,
 };
 
 export const MATCH_SEATS = 4;
 
 function getScoresFromPlayerRankings(rankings: PlayerRankings): ScoredPlayer[] {
     return rankings.getIds()
-        .map(id => ({ address: id as Address, score: rankings.getScore(id) }))
-        .sort((a, b) => b.score - a.score);
+        .map(id => ({
+            address: id as Address,
+            score: rankings.getScore(id),
+            matchCount: rankings.getMatchCount(id),
+        })).sort((a, b) => b.score - a.score);
 }
 
 export class PlayerRankings {
@@ -55,6 +59,10 @@ export class PlayerRankings {
         return ordinal(this._scoresById[id]);
     }
 
+    public getMatchCount(id: string): number {
+        return this._scoresById[id].matchCount;
+    }
+
     public getIds(): string[] {
         return this._ids.slice();
     }
@@ -68,6 +76,7 @@ export class PlayerRankings {
         for (let i = 0; i < infos.length; ++i) {
             infos[i].mu = changes[i].mu;
             infos[i].sigma = changes[i].sigma;
+            ++infos[i].matchCount;
         }
     }
 }
