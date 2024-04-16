@@ -54,14 +54,14 @@ export async function runTournament(cfg: TournamentConfig | PrivateTournamentCon
 {
    const logger = cfg.logger ?? DEFAULT_LOGGER;
 
-    const szn = cfg.szn;;
+    const { szn, contestAddress, client } = cfg;
     let seasonPrivateKey: Hex;
     let seasonPublicKey: Hex;
     if (isPrivateTournamentConfig(cfg)) {
         seasonPrivateKey = cfg.seasonPrivateKey;
         seasonPublicKey = deriveSeasonPublicKey(seasonPrivateKey);
     } else {
-        const keys = await getSeasonKeys(cfg.client, cfg.contestAddress, szn);
+        const keys = await getSeasonKeys(client, contestAddress, szn);
         if (!keys.privateKey) {
             throw new Error(`Season ${szn} has not been revealed yet and no key was provided.`);
         }
@@ -69,7 +69,7 @@ export async function runTournament(cfg: TournamentConfig | PrivateTournamentCon
         seasonPublicKey = keys.publicKey!;
     }
     const playerCodes: { [id: Address]: Hex } = Object.assign({},
-        ...Object.entries(await getSeasonPlayers(cfg.client, cfg.contestAddress, szn))
+        ...Object.entries(await getSeasonPlayers(client, contestAddress, szn))
             .map(([id, { codeHash, encryptedAesKey, encryptedCode, iv }]) => {
                 let code: Hex;
                 try {
@@ -82,7 +82,10 @@ export async function runTournament(cfg: TournamentConfig | PrivateTournamentCon
                         throw new Error(`Code hash does not match decrypted submission.`);
                     }
                 } catch (err) {
-                    logger('player_submission_error', { player: id });
+                    logger('player_submission_error', {
+                        player: id,
+                        season: szn,
+                    });
                     console.warn(`Failed to decrypt submission from ${id}:`, err);
                     return {};
                 }
