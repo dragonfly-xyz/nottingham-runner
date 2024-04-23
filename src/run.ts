@@ -52,9 +52,8 @@ function isPrivateTournamentConfig(cfg: TournamentConfig | PrivateTournamentConf
 export async function runTournament(cfg: TournamentConfig | PrivateTournamentConfig)
     : Promise<ScoredPlayer[]>
 {
-   const logger = cfg.logger ?? DEFAULT_LOGGER;
-
     const { szn, contestAddress, client } = cfg;
+    const logger = cfg.logger ?? DEFAULT_LOGGER;
     let seasonPrivateKey: Hex;
     let seasonPublicKey: Hex;
     if (isPrivateTournamentConfig(cfg)) {
@@ -93,11 +92,11 @@ export async function runTournament(cfg: TournamentConfig | PrivateTournamentCon
             }),
         );
     if (Object.keys(playerCodes).length === 0) {
-        logger('tournament_cancelled', {mode: cfg.mode, season: szn, reason: 'no players' });
+        logger('tournament_cancelled', {reason: 'no players' });
         return [];
     }
     
-    logger('tournament_start', { mode: cfg.mode, season: szn, players: Object.keys(playerCodes) });
+    logger('tournament_start', { players: Object.keys(playerCodes) });
 
     const seed = keccak256(Buffer.from(seasonPublicKey));
     const mm: MatchMaker = new MatchMaker({
@@ -112,11 +111,11 @@ export async function runTournament(cfg: TournamentConfig | PrivateTournamentCon
         let matchPromises = [] as Array<Promise<any>>;
         const playersPerMatch = mm.getBracketMatches();
         const bracket = mm.bracketIdx;
-        logger('bracket_start', { bracket: mm.bracketIdx, players: mm.getBracketPlayers() });
+        logger('bracket_start', { bracket, players: mm.getBracketPlayers() });
         for (const matchPlayers of playersPerMatch) {
             matchPromises.push((async () => {
                 const matchId = crypto.randomUUID();
-                logger('match_created', { matchId, players: matchPlayers });
+                logger('match_created', { matchId, players: matchPlayers, bracket });
                 try {
                     const result = await cfg.matchPool.runMatch({
                         id: matchId,
@@ -134,10 +133,11 @@ export async function runTournament(cfg: TournamentConfig | PrivateTournamentCon
                     );
                     logger('match_completed', {
                         matchId,
+                        bracket,
                         skill_scores: Object.assign({}, ...matchPlayers.map(p => ({ [p]: mm.getScore(p) }))),
                     });
                 } catch (err) {
-                    logger('match_failed', { matchId, error: err.message });
+                    logger('match_failed', { matchId, error: err.message, bracket });
                     console.error(`Match with players ${matchPlayers.join(', ')} failed: `, err.message);
                     if (!cfg.tolerant) {
                         throw err;
@@ -146,7 +146,7 @@ export async function runTournament(cfg: TournamentConfig | PrivateTournamentCon
             })());
         }
         await Promise.all(matchPromises);
-        logger('bracket_completed', { bracket: mm.bracketIdx });
+        logger('bracket_completed', { bracket });
         mm.advanceBracket();
     }
     return mm.getScores();
