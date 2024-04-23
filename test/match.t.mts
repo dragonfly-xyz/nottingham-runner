@@ -9,7 +9,7 @@ const FAILING_DEPLOY_BYTECODE = '0xfe';
 const FAILING_PLAYER_BYTECODE = '0x60fe5f526001601ff3';
 const ETERNAL_PLAYER_BYTECODE = '0x625b5f565f526003601df3';
 
-describe.only('match tests', () => {
+describe('match tests', () => {
     let node: EvmNode;
 
     before(async () => {

@@ -9,8 +9,8 @@ import { MatchMaker, ScoredPlayer } from './matchmaker.js';
 import { Logger, MatchPool } from './pools/match-pool.js';
 import { decryptPlayerCode, deriveSeasonPublicKey } from './encrypt.js';
 
-export interface LocalPoolConfig {
-    workerCount: number;
+export interface PlayerCodes {
+    [address: Address]: Hex;
 }
 
 export interface TournamentConfig {
@@ -22,10 +22,15 @@ export interface TournamentConfig {
     logger?: Logger;
     matchTimeout?: number;
     tolerant?: boolean;
+    brackets?: number[];
 }
 
 export interface PrivateTournamentConfig extends TournamentConfig {
     seasonPrivateKey: Hex;
+}
+
+export interface ExplicitTournamentConfig extends TournamentConfig {
+    playerCodes: PlayerCodes;
 }
 
 const DEFAULT_LOGGER = (() => {}) as Logger;
@@ -43,54 +48,52 @@ export enum MatchMakingMode {
     Tournament = 'tournament',
 }
 
-function isPrivateTournamentConfig(cfg: TournamentConfig | PrivateTournamentConfig)
+type RunTournamentConfig = TournamentConfig | PrivateTournamentConfig | ExplicitTournamentConfig;
+
+function isPrivateTournamentConfig(cfg: RunTournamentConfig)
     : cfg is PrivateTournamentConfig
 {
     return !!(cfg as any).seasonPrivateKey;
 }
 
-export async function runTournament(cfg: TournamentConfig | PrivateTournamentConfig)
+function isExplicitTournamentConfig(cfg: RunTournamentConfig)
+    : cfg is ExplicitTournamentConfig
+{
+    return !!(cfg as any).playerCodes;
+}
+
+export async function runTournament(cfg: RunTournamentConfig)
     : Promise<ScoredPlayer[]>
 {
     const { szn, contestAddress, client } = cfg;
     const logger = cfg.logger ?? DEFAULT_LOGGER;
     let seasonPrivateKey: Hex;
     let seasonPublicKey: Hex;
-    if (isPrivateTournamentConfig(cfg)) {
-        seasonPrivateKey = cfg.seasonPrivateKey;
-        seasonPublicKey = deriveSeasonPublicKey(seasonPrivateKey);
+    let playerCodes: PlayerCodes = {};
+
+    if (isExplicitTournamentConfig(cfg)) {
+        playerCodes = cfg.playerCodes;
     } else {
-        const keys = await getSeasonKeys(client, contestAddress, szn);
-        if (!keys.privateKey) {
-            throw new Error(`Season ${szn} has not been revealed yet and no key was provided.`);
+        if (isPrivateTournamentConfig(cfg)) {
+            seasonPrivateKey = cfg.seasonPrivateKey;
+            seasonPublicKey = deriveSeasonPublicKey(seasonPrivateKey);
+        } else {
+            const keys = await getSeasonKeys(client, contestAddress, szn);
+            if (!keys.privateKey) {
+                throw new Error(`Season ${szn} has not been revealed yet and no key was provided.`);
+            }
+            seasonPrivateKey = keys.privateKey!;
+            seasonPublicKey = keys.publicKey!;
         }
-        seasonPrivateKey = keys.privateKey!;
-        seasonPublicKey = keys.publicKey!;
+        playerCodes = await getDecryptedPlayerCodes({
+            client,
+            contestAddress,
+            logger,
+            seasonPrivateKey,
+            szn,
+        });
     }
-    const playerCodes: { [id: Address]: Hex } = Object.assign({},
-        ...Object.entries(await getSeasonPlayers(client, contestAddress, szn))
-            .map(([id, { codeHash, encryptedAesKey, encryptedCode, iv }]) => {
-                let code: Hex;
-                try {
-                    code = decryptPlayerCode(
-                        seasonPrivateKey,
-                        id as Hex,
-                        { encryptedAesKey, encryptedCode, iv },
-                    );
-                    if (keccak256(code) !== codeHash) {
-                        throw new Error(`Code hash does not match decrypted submission.`);
-                    }
-                } catch (err) {
-                    logger('player_submission_error', {
-                        player: id,
-                        season: szn,
-                    });
-                    console.warn(`Failed to decrypt submission from ${id}:`, err);
-                    return {};
-                }
-                return { [id as Address]: code };
-            }),
-        );
+
     if (Object.keys(playerCodes).length === 0) {
         logger('tournament_cancelled', {reason: 'no players' });
         return [];
@@ -104,6 +107,7 @@ export async function runTournament(cfg: TournamentConfig | PrivateTournamentCon
                 ? TOURNAMENT_MATCHMAKER_CONFIG
                 : SCRIMMAGE_MATCHMAKER_CONFIG
             ),
+        ...(cfg.brackets ? { matchesPerPlayerPerBracket: cfg.brackets } : {}),
         seed,
         players: Object.keys(playerCodes),
     });
@@ -156,4 +160,38 @@ export async function runTournament(cfg: TournamentConfig | PrivateTournamentCon
         mm.advanceBracket();
     }
     return mm.getScores();
+}
+
+async function getDecryptedPlayerCodes(opts: {
+    client: PublicClient;
+    contestAddress: Address;
+    szn: number;
+    seasonPrivateKey: Hex;
+    logger: Logger;
+}): Promise<PlayerCodes> {
+    const { client, contestAddress, szn, seasonPrivateKey, logger } = opts;
+    return Object.assign({},
+        ...Object.entries(await getSeasonPlayers(client, contestAddress, szn))
+            .map(([id, { codeHash, encryptedAesKey, encryptedCode, iv }]) => {
+                let code: Hex;
+                try {
+                    code = decryptPlayerCode(
+                        seasonPrivateKey,
+                        id as Hex,
+                        { encryptedAesKey, encryptedCode, iv },
+                    );
+                    if (keccak256(code) !== codeHash) {
+                        throw new Error(`Code hash does not match decrypted submission.`);
+                    }
+                } catch (err) {
+                    logger('player_submission_error', {
+                        player: id,
+                        season: szn,
+                    });
+                    console.warn(`Failed to decrypt submission from ${id}:`, err);
+                    return {};
+                }
+                return { [id as Address]: code };
+            }),
+    );
 }

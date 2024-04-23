@@ -5,10 +5,13 @@ describe('node tests', () => {
     let node: EvmNode;
 
     before(async () => {
-        node = await EvmNode.create();
+        node = await EvmNode.create(9091);
     })
+    
     after(async () => {
-        await node.shutdown();
+        if (node) {
+            await node.shutdown();
+        }
     });
     
     it('can spin up a node', async () => {
