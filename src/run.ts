@@ -134,7 +134,8 @@ export async function runTournament(cfg: TournamentConfig | PrivateTournamentCon
                     logger('match_completed', {
                         matchId,
                         bracket,
-                        skill_scores: Object.assign({}, ...matchPlayers.map(p => ({ [p]: mm.getScore(p) }))),
+                        scores: matchPlayers.map(p => result.playerResults[p].score),
+                        gasUsed: matchPlayers.map(p => result.playerResults[p].gasUsed),
                     });
                 } catch (err) {
                     logger('match_failed', { matchId, error: err.message, bracket });
@@ -146,7 +147,12 @@ export async function runTournament(cfg: TournamentConfig | PrivateTournamentCon
             })());
         }
         await Promise.all(matchPromises);
-        logger('bracket_completed', { bracket });
+        logger('bracket_completed', {
+            bracket,
+            rankings: Object.assign({},
+                ...mm.getBracketPlayers().map(id => ({ [id]: mm.getScore(id) })),
+            ),
+        });
         mm.advanceBracket();
     }
     return mm.getScores();

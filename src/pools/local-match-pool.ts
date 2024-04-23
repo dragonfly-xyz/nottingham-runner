@@ -11,7 +11,6 @@ export class LocalMatchPool implements MatchPool {
 
     public runMatch(params: RunMatchParams): Promise<MatchResult> {
         return this._cluster.run(new MatchJob({
-            id: params.id,
             seed: params.seed,
             players: params.players,
             logger: params.logger,
