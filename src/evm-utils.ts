@@ -61,7 +61,11 @@ export async function waitForSuccessfulReceipt(
     hash: Hex,
     pollingInterval: number = 2e3,
 ): Promise<TransactionReceipt> {
-    const r = await client.waitForTransactionReceipt({ hash, timeout: 0, pollingInterval, });
+    const r = await client.waitForTransactionReceipt({
+        hash,
+        timeout: 30e3,
+        pollingInterval,
+    });
     if (r.status !== 'success') {
         throw new Error(`tx ${hash} failed`);
     }

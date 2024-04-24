@@ -9,6 +9,7 @@ import {
 } from "viem";
 import { foundry } from "viem/chains";
 import { env } from 'process';
+import crypto from 'crypto';
 
 const BLOCK_GAS_LIMIT = 32e9;
 const MAX_CODE_SIZE = 0x8000;
@@ -39,7 +40,7 @@ export class EvmNode {
                 '--mnemonic-random',
                 '--accounts', '1',
                 '--order', 'fifo',
-                '--prune-history',
+                '--prune-history', '1',
             ],
             { detached: false },
         );
@@ -79,6 +80,7 @@ export class EvmNode {
         return new EvmNode({ proc, wallet, client, initialStateDump });
     }
 
+    public readonly id: string;
     private readonly _proc: ChildProcess;
     private readonly _wallet: WalletClient;
     private readonly _client: PublicClient;
@@ -87,11 +89,13 @@ export class EvmNode {
     private _currentJob: NodeJob<any> | undefined;
 
     private constructor(info: {
+        id?: string;
         proc: ChildProcess;
         wallet: WalletClient;
         client: PublicClient;
         initialStateDump: Hex;
     }) {
+        this.id = info.id ?? crypto.randomUUID();
         this._proc = info.proc;
         this._wallet = info.wallet;
         this._client = info.client;
@@ -112,6 +116,7 @@ export class EvmNode {
             throw new Error(`Node ${this._proc.pid} already has a job running.`);
         }
         this._currentJob = job;
+        console.debug(`Running job on node ${this.id}...`);
         return (async () => {
             await this._client.request({ method: 'anvil_loadState', params: [this._initialStateDump] });
             try {
@@ -122,9 +127,11 @@ export class EvmNode {
                 });
                 return res;
             } catch (err) {
-                console.error(`Node job failed with: ${err?.message ?? err}`);
+                console.error(`Node job failed on ${this.id} with: ${err}`);
+                throw err;
             } finally {
                 this._currentJob = undefined;
+                console.debug(`Finished job on node ${this.id}.`);
             }
         })();
     }

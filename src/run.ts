@@ -101,7 +101,7 @@ export async function runTournament(cfg: RunTournamentConfig)
     
     logger('tournament_start', { players: Object.keys(playerCodes) });
 
-    const seed = keccak256(Buffer.from(seasonPublicKey));
+    const seed = keccak256(Buffer.from(seasonPublicKey ?? ''));
     const mm: MatchMaker = new MatchMaker({
         ...(cfg.mode === MatchMakingMode.Tournament
                 ? TOURNAMENT_MATCHMAKER_CONFIG

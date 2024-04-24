@@ -71,7 +71,8 @@ export class LocalNodeCluster extends EventEmitter {
                 Math.min(this._queue.length, availableNodes.length),
             );
             jobPromises.push(...newJobs.map((j, i) => {
-                const p = availableNodes[i].run(j.job)
+                const node = availableNodes[i];
+                const p = node.run(j.job)
                     .then(r => j.accept(r))
                     .catch(e => j.reject(e))
                     .finally(() => {
@@ -88,7 +89,7 @@ export class LocalNodeCluster extends EventEmitter {
                 await Promise.race([
                     ...jobPromises,
                     shutdownCalledPromise,
-                    delay(100),
+                    delay(250),
                 ]);
             } catch (err) {}
         }

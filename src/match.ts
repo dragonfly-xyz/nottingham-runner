@@ -42,7 +42,7 @@ type EmptyBlockEventArgs = { round: number; };
 type SwapEventArgs = { playerIdx: number; fromAssetIdx: number; toAssetIdx: number; fromAmount: bigint; toAmount: bigint; };
 type BundleSettledEventArgs = { playerIdx: number; success: boolean; bundle: PlayerBundleEventParam };
 
-const RECEIPT_POLLING_INTERVAL = 100;
+const RECEIPT_POLLING_INTERVAL = 500;
 
 const DEFAULT_LOGGER: Logger = () => {};
 
