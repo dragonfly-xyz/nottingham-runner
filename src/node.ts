@@ -40,7 +40,8 @@ export class EvmNode {
                 '--mnemonic-random',
                 '--accounts', '1',
                 '--order', 'fifo',
-                '--prune-history', '1',
+                '--prune-history',
+                '--transaction-block-keeper', '1'
             ],
             { detached: false },
         );
