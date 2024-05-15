@@ -182,12 +182,13 @@ describe('contest tests', () => {
     async function registerPlayer(addr: Address): Promise<void> {
         const expiry = Math.floor(Date.now() / 1e3) + 60;
         const nonce = bytesToBigInt(randomBytes(32));
-        const digest = hashRegistration(addr, expiry, nonce);
+        const metadata = '0x';
+        const digest = hashRegistration(addr, expiry, nonce, metadata);
         const { v, r, s } = await sign(registrar, digest);
         await waitForSuccessfulReceipt(publicClient, await host.writeContract({
             address: contractAddress,
             functionName: 'register',
-            args: [ addr, { expiry, nonce, r, s, v } ],
+            args: [ addr, { expiry, nonce, r, s, v, metadata } ],
             ...COMMON_WRITE_PARAMS,
         }));
     }
@@ -211,14 +212,20 @@ describe('contest tests', () => {
         }));
     }
 
-    function hashRegistration(player: Address, expiry: number, nonce: bigint): Hex {
+    function hashRegistration(
+        player: Address,
+        expiry: number,
+        nonce: bigint,
+        metadata: Hex,
+    ): Hex {
         return keccak256(Buffer.concat([
-            keccak256(Buffer.from('ᴙɘgiꙅTᴙATioᴎ', 'utf-8'), 'bytes'),
+            keccak256(Buffer.from('🎟️', 'utf-8'), 'bytes'),
             padBytes(toBytes(contractAddress), { dir: 'left', size: 32 }),
             toBytes(31337, { size: 32 }),
             padBytes(toBytes(player), { dir: 'left', size: 32 }),
             toBytes(expiry, { size: 32 }),
             toBytes(nonce, { size: 32 }),
+            keccak256(metadata, 'bytes'),
         ]));
     }
 

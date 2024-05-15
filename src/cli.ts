@@ -1,7 +1,7 @@
 import 'colors';
 import process from 'process';
 import yargs from 'yargs';
-import { Hex, PublicClient, createPublicClient, http } from 'viem';
+import { Hex, PublicClient, createPublicClient, getAddress, http } from 'viem';
 import { MatchMakingMode, runTournament } from './run.js';
 import { LocalMatchPool } from './pools/local-match-pool.js';
 import { mainnet } from 'viem/chains';
@@ -21,6 +21,7 @@ yargs(process.argv.slice(2)).command(
         .option('season-key', { alias: 'k', type: 'string' })
         .option('rpc-url', { alias: 'r', type: 'string', default: process.env.RPC_URL })
         .option('workers', { alias: 'w', type: 'number', default: 8 })
+        .option('whitelist', { alias: 'W', type: 'string', array: true })
     ,
     async argv => {
         if (!argv.rpcUrl) {
@@ -42,7 +43,8 @@ yargs(process.argv.slice(2)).command(
             seasonPrivateKey: argv.seasonKey as Hex,
             logger: (name, data) => {
                 console.log(`${name}: ${JSON.stringify(data)}`);
-            }
+            },
+            whitelist: argv.whitelist ? argv.whitelist.map(v => getAddress(v)) : undefined,
         });
         await matchPool.finished();
         timeTaken = Date.now() - timeTaken;

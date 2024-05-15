@@ -23,6 +23,7 @@ export interface TournamentConfig {
     matchTimeout?: number;
     tolerant?: boolean;
     brackets?: number[];
+    whitelist?: Address[];
 }
 
 export interface PrivateTournamentConfig extends TournamentConfig {
@@ -91,6 +92,7 @@ export async function runTournament(cfg: RunTournamentConfig)
             logger,
             seasonPrivateKey,
             szn,
+            whitelist: cfg.whitelist,
         });
     }
 
@@ -120,6 +122,7 @@ export async function runTournament(cfg: RunTournamentConfig)
             matchPromises.push((async () => {
                 const matchId = crypto.randomUUID();
                 logger('match_created', { matchId, players: matchPlayers, bracket });
+                let startTime = Date.now();
                 try {
                     const result = await cfg.matchPool.runMatch({
                         id: matchId,
@@ -140,9 +143,15 @@ export async function runTournament(cfg: RunTournamentConfig)
                         bracket,
                         scores: matchPlayers.map(p => result.playerResults[p].score),
                         gasUsed: matchPlayers.map(p => result.playerResults[p].gasUsed),
+                        duration: Math.round((Date.now() - startTime) / 1e3),
                     });
                 } catch (err) {
-                    logger('match_failed', { matchId, error: err.message, bracket });
+                    logger('match_failed', {
+                        matchId,
+                        error: err.message,
+                        bracket,
+                        duration: Math.round((Date.now() - startTime) / 1e3),
+                    });
                     console.error(`Match with players ${matchPlayers.join(', ')} failed: `, err.message);
                     if (!cfg.tolerant) {
                         throw err;
@@ -168,10 +177,15 @@ async function getDecryptedPlayerCodes(opts: {
     szn: number;
     seasonPrivateKey: Hex;
     logger: Logger;
+    whitelist?: Address[],
 }): Promise<PlayerCodes> {
+    const whitelistMap = opts.whitelist
+        ? Object.assign({}, ...(opts.whitelist.map(a => ({ [a.toLowerCase()]: true }))))
+        : null;
     const { client, contestAddress, szn, seasonPrivateKey, logger } = opts;
     return Object.assign({},
         ...Object.entries(await getSeasonPlayers(client, contestAddress, szn))
+            .filter(([id]) => !whitelistMap || id.toLowerCase() in whitelistMap)
             .map(([id, { codeHash, encryptedAesKey, encryptedCode, iv }]) => {
                 let code: Hex;
                 try {
