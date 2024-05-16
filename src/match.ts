@@ -84,6 +84,7 @@ export class MatchJob implements NodeJob<MatchResult> {
         this._client = node.client;
         this._wallet = node.wallet;
         this._gasLimit = node.blockGasLimit;
+        this._logger('game_start', { startTime: Date.now() });
         this._gameAddress = await this._deployGame();
         while (!timedOut) {
             const roundResult = await this._playRound();

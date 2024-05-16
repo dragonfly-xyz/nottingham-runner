@@ -63,11 +63,16 @@ function isExplicitTournamentConfig(cfg: RunTournamentConfig)
     return !!(cfg as any).playerCodes;
 }
 
+export function augmentLogger(logger: Logger, extraData: object): Logger {
+    return (name, data) => logger(name, { ...data, ...extraData });
+}
+
 export async function runTournament(cfg: RunTournamentConfig)
     : Promise<ScoredPlayer[]>
 {
+    const startTime = Date.now();
     const { szn, contestAddress, client } = cfg;
-    const logger = cfg.logger ?? DEFAULT_LOGGER;
+    const logger = augmentLogger(cfg.logger ?? DEFAULT_LOGGER, { season: szn });
     let seasonPrivateKey: Hex;
     let seasonPublicKey: Hex;
     let playerCodes: PlayerCodes = {};
@@ -97,7 +102,7 @@ export async function runTournament(cfg: RunTournamentConfig)
     }
 
     if (Object.keys(playerCodes).length === 0) {
-        logger('tournament_cancelled', {reason: 'no players' });
+        logger('tournament_aborted', {reason: 'no players' });
         return [];
     }
     
@@ -115,44 +120,59 @@ export async function runTournament(cfg: RunTournamentConfig)
     });
     while (!mm.isDone()) {
         let matchPromises = [] as Array<Promise<any>>;
+        const bracketStartTime = Date.now();
         const playersPerMatch = mm.getBracketMatches();
         const bracket = mm.bracketIdx;
-        logger('bracket_start', { bracket, players: mm.getBracketPlayers() });
+        const bracketLogger = augmentLogger(logger, { bracket } );
+        bracketLogger('bracket_start', { players: mm.getBracketPlayers() });
         for (const matchPlayers of playersPerMatch) {
+            const matchId = crypto.randomUUID();
+            const matchLogger = augmentLogger(bracketLogger, { matchId, bracket });
             matchPromises.push((async () => {
-                const matchId = crypto.randomUUID();
-                logger('match_created', { matchId, players: matchPlayers, bracket });
-                let startTime = Date.now();
+                matchLogger('match_created', { matchId, players: matchPlayers, bracket });
+                // Will be replaced on game_start log.
+                let matchStartTime = Date.now();
                 try {
                     const result = await cfg.matchPool.runMatch({
                         id: matchId,
                         seed,
                         players: Object.assign(
                             {},
-                            ...matchPlayers.map(id => ({ [id]: { bytecode: playerCodes[id] } })),
+                            ...matchPlayers.map(id => ({
+                                [id]: { bytecode: playerCodes[id] },
+                            })),
                         ),
-                        logger: (name, data) => logger(name, { ...data, matchId, bracket }),
                         timeout: cfg.matchTimeout,
+                        logger: (name, data) => {
+                            if (name === 'game_start') {
+                                matchStartTime = data.startTime;
+                            }
+                            matchLogger(name, { log: data });
+                        },
                     });
                     mm.rankMatchResult(
                         Object.keys(result.playerResults)
-                        .sort((a, b) => result.playerResults[b].score - result.playerResults[a].score),
+                           .sort((a, b) =>
+                                result.playerResults[b].score -
+                                result.playerResults[a].score
+                            ),
                     );
-                    logger('match_completed', {
-                        matchId,
-                        bracket,
-                        scores: matchPlayers.map(p => result.playerResults[p].score),
-                        gasUsed: matchPlayers.map(p => result.playerResults[p].gasUsed),
-                        duration: Math.round((Date.now() - startTime) / 1e3),
+                    matchLogger('match_completed', {
+                        results: matchPlayers.map(p => ({
+                                ...result.playerResults[p],
+                                player: p,
+                            })).sort((a, b) => b.score - a.score),
+                        duration: Date.now() - matchStartTime,
                     });
                 } catch (err) {
-                    logger('match_failed', {
-                        matchId,
+                    matchLogger('match_failed', {
                         error: err.message,
-                        bracket,
-                        duration: Math.round((Date.now() - startTime) / 1e3),
+                        duration: Date.now() - matchStartTime,
                     });
-                    console.error(`Match with players ${matchPlayers.join(', ')} failed: `, err.message);
+                    console.error(`Match with players ${
+                        matchPlayers.join(', ')} failed: `,
+                        err.message,
+                    );
                     if (!cfg.tolerant) {
                         throw err;
                     }
@@ -160,15 +180,15 @@ export async function runTournament(cfg: RunTournamentConfig)
             })());
         }
         await Promise.all(matchPromises);
-        logger('bracket_completed', {
-            bracket,
-            rankings: Object.assign({},
-                ...mm.getBracketPlayers().map(id => ({ [id]: mm.getScore(id) })),
-            ),
+        bracketLogger('bracket_completed', {
+            duration: Date.now() - bracketStartTime,
+            scores: mm.getBracketPlayers().map(id => ({ address: id, score: mm.getScore(id) })),
         });
         mm.advanceBracket();
     }
-    return mm.getScores();
+    const scores = mm.getScores();
+    logger('tournament_completed', { startTime, endTime: new Date(), scores });
+    return scores;
 }
 
 async function getDecryptedPlayerCodes(opts: {

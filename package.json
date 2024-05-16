@@ -35,7 +35,7 @@
   "dependencies": {
     "colors": "^1.4.0",
     "openskill": "^3.1.0",
-    "viem": "^2.9.18",
+    "viem": "^2.10.5",
     "yargs": "^17.7.2"
   }
 }
