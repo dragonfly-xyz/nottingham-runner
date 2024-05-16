@@ -1,5 +1,6 @@
 import { toBytes, toHex, Hex } from "viem";
 import crypto, { KeyObject } from "crypto";
+import { promisify } from "util";
 
 // Player bytecode is prefixed with their address and symmetrically encrypted using a
 // player-chosen AES-128 key.
@@ -30,7 +31,10 @@ export function decryptPlayerCode(
     submission: EncryptedCodeSubmission,
 ): Hex {
     const aesKey = crypto.privateDecrypt(
-        decodePrivateKey(seasonPrivateKey),
+        {
+            key: decodePrivateKey(seasonPrivateKey),
+            oaepHash: 'sha256',
+        },
         toBytes(submission.encryptedAesKey),
     );
     if (aesKey.length !== 16) {
@@ -45,17 +49,26 @@ export function decryptPlayerCode(
     return toHex(dec.subarray(20));
 }
 
-export function encryptPlayerCode(
+export const encryptPlayerCode = webEncryptPlayerCode;
+
+export async function nativeEncryptPlayerCode(
     seasonPublicKey: Hex,
     playerAddress: Hex,
     plainCode: Hex,
-): EncryptedCodeSubmission {
+): Promise<EncryptedCodeSubmission> {
     // Code must be prefixed with the player address.
     const prefixedCode = Buffer.concat([toBytes(playerAddress), toBytes(plainCode)]);
-    const aesKey = crypto.generateKeySync('aes', { length: 128 });
+    // 1. Create a random symmetric encryption key.
+    // 2. Encrypt code with the symmetric key.
+    // 3. Encrypt the symmetric key with the season's public key.
+    const aesKey = await promisify(crypto.generateKey)('aes', { length: 128 });
     const encryptedAesKey = crypto.publicEncrypt(
-        decodePublicKey(seasonPublicKey),
+        {
+            key: decodePublicKey(seasonPublicKey),
+            oaepHash: 'sha256',
+        },
         aesKey.export(),
+        
     );
     const iv = crypto.randomBytes(12);
     const cipher = crypto.createCipheriv('aes-128-gcm', aesKey, iv);
@@ -63,6 +76,45 @@ export function encryptPlayerCode(
     return {
         encryptedAesKey: toHex(encryptedAesKey),
         encryptedCode: toHex(encryptedCode),
+        iv: toHex(iv),
+    };
+}
+
+export async function webEncryptPlayerCode(
+    seasonPublicKey: Hex,
+    playerAddress: Hex,
+    plainCode: Hex,
+): Promise<EncryptedCodeSubmission> {
+    // Code must be prefixed with the player address.
+    const prefixedCode = Buffer.concat([toBytes(playerAddress), toBytes(plainCode)]);
+    // 1. Create a random symmetric encryption key.
+    // 2. Encrypt code with the symmetric key.
+    // 3. Encrypt the symmetric key with the season's public key.
+    const aesKey = await crypto.subtle.generateKey(
+        { name: 'AES-GCM', length: 128 },
+        true,
+        ['encrypt', 'decrypt'],
+    );
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encryptedCode = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv },
+        aesKey,
+        prefixedCode,
+    );
+    const encryptedAesKey = await crypto.subtle.encrypt(
+        { name: 'RSA-OAEP' },
+        await crypto.subtle.importKey(
+            'jwk',
+            decodeJwk(seasonPublicKey),
+            { name: 'RSA-OAEP', hash: 'SHA-256' },
+            false,
+            ['encrypt'],
+        ),
+        await crypto.subtle.exportKey('raw', aesKey),
+    );
+    return {
+        encryptedAesKey: toHex(new Uint8Array(encryptedAesKey)),
+        encryptedCode: toHex(new Uint8Array(encryptedCode).slice(0, -16)),
         iv: toHex(iv),
     };
 }

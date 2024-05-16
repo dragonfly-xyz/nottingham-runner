@@ -8,7 +8,7 @@ import crypto from 'crypto';
 import { fromBytes, toHex } from 'viem';
 
 
-describe('encryption tests', () => {
+describe.only('encryption tests', () => {
     const SUBMISSION_CODE_MAX_SIZE = 0x10100;
     const MAX_CODE_SIZE = 0x8000;
     let seasonKeys: SeasonKeys;
@@ -22,25 +22,25 @@ describe('encryption tests', () => {
         badSeasonKeys = createSeasonKeys();
     });
 
-    it('encrypted bytecode is below submission maximum', () => {
-        const sub = encryptPlayerCode(seasonKeys.publicKey, PLAYER_ADDRESS, PLAIN_CODE);
+    it('encrypted bytecode is below submission maximum', async () => {
+        const sub = await encryptPlayerCode(seasonKeys.publicKey, PLAYER_ADDRESS, PLAIN_CODE);
         expect(sub.encryptedCode.length).to.be.lessThan(SUBMISSION_CODE_MAX_SIZE);
     });
 
-    it('can encrypt then decrypt data', () => {
-        const sub = encryptPlayerCode(seasonKeys.publicKey, PLAYER_ADDRESS, PLAIN_CODE);
+    it('can encrypt then decrypt data', async () => {
+        const sub = await encryptPlayerCode(seasonKeys.publicKey, PLAYER_ADDRESS, PLAIN_CODE);
         const code = decryptPlayerCode(seasonKeys.privateKey, PLAYER_ADDRESS, sub);
         expect(code).to.eq(PLAIN_CODE);
     });
 
-    it('decrypt fails with wrong season key', () => {
-        const sub = encryptPlayerCode(seasonKeys.publicKey, PLAYER_ADDRESS, PLAIN_CODE);
+    it('decrypt fails with wrong season key', async () => {
+        const sub = await encryptPlayerCode(seasonKeys.publicKey, PLAYER_ADDRESS, PLAIN_CODE);
         expect(() => decryptPlayerCode(badSeasonKeys.privateKey, PLAYER_ADDRESS, sub))
             .to.throw();
     });
 
-    it('decrypt fails with wrong iv', () => {
-        const sub = encryptPlayerCode(seasonKeys.publicKey, PLAYER_ADDRESS, PLAIN_CODE);
+    it('decrypt fails with wrong iv', async () => {
+        const sub = await encryptPlayerCode(seasonKeys.publicKey, PLAYER_ADDRESS, PLAIN_CODE);
         expect(() => decryptPlayerCode(
             seasonKeys.privateKey,
             PLAYER_ADDRESS,
@@ -48,8 +48,8 @@ describe('encryption tests', () => {
         ).to.throw();
     });
 
-    it('decrypt fails with wrong prefix', () => {
-        const sub = encryptPlayerCode(seasonKeys.publicKey, PLAYER_ADDRESS, PLAIN_CODE);
+    it('decrypt fails with wrong prefix', async () => {
+        const sub = await encryptPlayerCode(seasonKeys.publicKey, PLAYER_ADDRESS, PLAIN_CODE);
         expect(() => decryptPlayerCode(seasonKeys.privateKey, WRONG_PLAYER_ADDRESS, sub))
             .to.throw('invalid code');
     });
