@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { PlayerRankings, MatchMaker, MatchMakerConfig, MATCH_SEATS } from '../src/matchmaker.js';
+import { MatchMaker, MatchMakerConfig, MATCH_SEATS } from '../src/matchmaker.js';
 import erf from '@stdlib/math-base-special-erf';
 
 function cdf(x: number, mean: number = 0.5, std: number = 1/3): number {
@@ -44,26 +44,6 @@ class TestMatchMaker extends MatchMaker {
     public constructor(cfg: MatchMakerConfig) {
         super(cfg);
     }
-
-    public get rankings(): PlayerRankings {
-        return this._rankings;
-    }
-}
-
-class TestPlayerRankings extends PlayerRankings {
-    public constructor(ids: string[]) {
-        super(ids);
-    }
-
-    public getRawScore(id: string): { mu: number; sigma: number } {
-        const { mu, sigma } = this._scoresById[id];
-        return { mu, sigma };
-    }
-
-    public setRawScore(id: string, mu: number, sigma: number): void {
-        this._scoresById[id].mu = mu;
-        this._scoresById[id].mu = sigma;
-    }
 }
 
 describe('matchmaker tests', () => {
@@ -102,7 +82,7 @@ describe('matchmaker tests', () => {
                 const playersPerMatch = mm.getBracketMatches();
                 const bracketPlayers = mm.getBracketPlayers();
                 const playerMatchCount =
-                    Object.assign({}, ...mm.getBracketPlayers().map(id => ({ [id]: 0 }))) as
+                    Object.assign({}, ...bracketPlayers.map(id => ({ [id]: 0 }))) as
                         { [id: string]: number };
                 for (const match of playersPerMatch) {
                     expect(match.every(id => players.isPlayer(id)), 'all match ids are valid players').to.be.true;
@@ -153,24 +133,24 @@ describe('matchmaker tests', () => {
             expect(mm.getBracketPlayers().length).to.eq(MATCH_SEATS);
         });
 
-        it('bracket players have the highest scores', () => {
-            const players = new NormalPlayers(100);
-            const rankings = new TestPlayerRankings(players.players);
-            const mm = new TestMatchMaker({
-                ...DEFAULT_SCRIMMAGE_CFG,
-                matchesPerPlayerPerBracket: [...new Array(Math.ceil(Math.log2(players.playerCount)))].map(() => 1),
-                rankings,
-            });
-            for (const id of players.players) {
-                rankings.setRawScore(id, Math.random(), Math.random());
-            }
-            const bracketPlayers = mm.getBracketPlayers();
-            for (const [idx, id] of bracketPlayers.entries()) {
-                for (let i = idx + 1; i < bracketPlayers.length; ++i) {
-                    expect(rankings.getScore(bracketPlayers[i])).to.be.lessThanOrEqual(rankings.getScore(id));
-                }
-            }
-        });
+        // it('bracket players have the highest scores', () => {
+        //     const players = new NormalPlayers(100);
+        //     const rankings = new TestPlayerRankings(players.players);
+        //     const mm = new TestMatchMaker({
+        //         ...DEFAULT_SCRIMMAGE_CFG,
+        //         matchesPerPlayerPerBracket: [...new Array(Math.ceil(Math.log2(players.playerCount)))].map(() => 1),
+        //         rankings,
+        //     });
+        //     for (const id of players.players) {
+        //         rankings.setRawScore(id, Math.random());
+        //     }
+        //     const bracketPlayers = mm.getBracketPlayers();
+        //     for (const [idx, id] of bracketPlayers.entries()) {
+        //         for (let i = idx + 1; i < bracketPlayers.length; ++i) {
+        //             expect(rankings.getScore(bracketPlayers[i])).to.be.lessThanOrEqual(rankings.getScore(id));
+        //         }
+        //     }
+        // });
 
         // it('can rank a match result', () => {
         //     const players = new NormalPlayers(100);

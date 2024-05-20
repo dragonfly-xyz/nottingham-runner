@@ -203,7 +203,7 @@ describe('contest tests', () => {
     }
 
     async function submitPlayerCode(szn: number, player: WalletClient, code: Hex): Promise<void> {
-        const encrypted = encryptPlayerCode(SEASON_KEYS[szn].publicKey, player.account.address, code);
+        const encrypted = await encryptPlayerCode(SEASON_KEYS[szn].publicKey, player.account.address, code);
         await waitForSuccessfulReceipt(publicClient, await player.writeContract({
             address: contractAddress,
             functionName: 'submitCode',

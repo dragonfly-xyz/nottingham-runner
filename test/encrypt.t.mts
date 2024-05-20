@@ -8,7 +8,7 @@ import crypto from 'crypto';
 import { fromBytes, toHex } from 'viem';
 
 
-describe.only('encryption tests', () => {
+describe('encryption tests', () => {
     const SUBMISSION_CODE_MAX_SIZE = 0x10100;
     const MAX_CODE_SIZE = 0x8000;
     let seasonKeys: SeasonKeys;

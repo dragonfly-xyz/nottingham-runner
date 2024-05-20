@@ -1,99 +1,35 @@
 import { Address } from "viem";
 import { Prng } from "./prng.js";
-import * as oskill from "openskill";
-import { ordinal } from "openskill";
 
 export interface ScoredPlayer {
     address: Address;
     score: number;
 }
 
-interface PlayerRankingInfo {
-    mu: number;
-    sigma: number;
+interface PlayerScoreInternals {
+    normalizedPlaceSum: number;
     matchCount: number;
 }
 
-const EMPTY_PLAYER_RANKING_INFO: PlayerRankingInfo = {
-    ...oskill.rating(), matchCount: 0,
+const EMPTY_PLAYER_SCORE_INTERNALS: PlayerScoreInternals = {
+    normalizedPlaceSum: 0,
+    matchCount: 0,
 };
 
 export const MATCH_SEATS = 4;
 
-function getScoresFromPlayerRankings(rankings: PlayerRankings): ScoredPlayer[] {
-    return rankings.getIds()
-        .map(id => ({
-            address: id as Address,
-            score: rankings.getScore(id),
-            matchCount: rankings.getMatchCount(id),
-        })).sort((a, b) => b.score - a.score);
-}
-
-export class PlayerRankings {
-    protected readonly _ids: string[];
-    protected _scoresById: { [id: string]: PlayerRankingInfo };
-    
-    public constructor(ids: string[]) {
-        this._ids = ids.slice();
-        this._scoresById = Object.assign(
-            {},
-            ...ids.map(id => ({ [id]: {... EMPTY_PLAYER_RANKING_INFO } })),
-        );
-    }
-
-    public isId(id: string): boolean {
-        return id in this._scoresById;
-    }
-    
-    public get playerCount(): number {
-        return this._ids.length;
-    }
-
-    public getConfidence(id: string): number {
-        return Math.max(0, Math.min(1,
-            1 - this._scoresById[id].sigma / EMPTY_PLAYER_RANKING_INFO.sigma
-        ));
-    }
-
-    public getScore(id: string): number {
-        return ordinal(this._scoresById[id]);
-    }
-
-    public getMatchCount(id: string): number {
-        return this._scoresById[id].matchCount;
-    }
-
-    public getIds(): string[] {
-        return this._ids.slice();
-    }
-
-    public rankMatchResult(ids: string[]): void {
-        const infos = ids.map(id => this._scoresById[id]);
-        if (!infos.every(info => !!info)) {
-            throw new Error('Player ID not found in rankings');
-        }
-        const changes = oskill.rate(infos.map(i => [{ sigma: i.sigma, mu: i.mu }])).flat(1);
-        for (let i = 0; i < infos.length; ++i) {
-            infos[i].mu = changes[i].mu;
-            infos[i].sigma = changes[i].sigma;
-            ++infos[i].matchCount;
-        }
-    }
-}
-
 export type MatchMakerConfig = {
     seed: string;
     matchesPerPlayerPerBracket: number[];
-} & (
-        { players: string[]; rankings?: never; } |
-        { rankings: PlayerRankings; players?: never; }
-    );
+    players: string[];
+}
 
 export class MatchMaker {
     protected readonly _prng: Prng;
-    protected readonly _rankings: PlayerRankings;
+    protected readonly _ids: string[];
     protected readonly _matchesPerPlayerPerBracket: number[];
     protected _bracketIdx: number = 0;
+    protected _scoresByBracketById: Array<{ [id: string]: PlayerScoreInternals }> = [];
 
     public constructor(cfg: MatchMakerConfig) {
         if (cfg.matchesPerPlayerPerBracket.length < 1) {
@@ -102,7 +38,7 @@ export class MatchMaker {
         this._matchesPerPlayerPerBracket = cfg.matchesPerPlayerPerBracket;
         this._prng = new Prng(cfg.seed);
         this._matchesPerPlayerPerBracket = cfg.matchesPerPlayerPerBracket;
-        this._rankings = cfg.rankings ?? new PlayerRankings(cfg.players);
+        this._ids = cfg.players.slice();
     }
 
     public get maxBrackets(): number {
@@ -119,7 +55,7 @@ export class MatchMaker {
         }
         const matches = [] as string[][];
         for (let i = 0; i < this._matchesPerPlayerPerBracket[this._bracketIdx]; ++i) {
-            const playerIds = this._prng.shuffle(this.getBracketPlayers());
+            const playerIds = this._prng.shuffle(this.getBracketPlayers(this._bracketIdx));
             if (playerIds.length < MATCH_SEATS) {
                 throw new Error(`not enough players for a full match: ${playerIds.length}/${MATCH_SEATS}`);
             }
@@ -140,29 +76,53 @@ export class MatchMaker {
     }
 
     public getAllPlayers(): string[] {
-        return this._rankings.getIds();
+        return this._ids.slice();
     }
     
-    public getBracketPlayers(): string[] {
-        const minPlayerPercentile = 1 / (2 ** this._bracketIdx);
-        return this.getAllPlayers()
-            .sort((a, b) => this._rankings.getScore(b) - this._rankings.getScore(a))
-            .slice(0, Math.max(MATCH_SEATS, Math.ceil(this._rankings.playerCount * minPlayerPercentile)));
+    public getBracketPlayers(bracketIdx?: number): string[] {
+        bracketIdx = bracketIdx ?? this._bracketIdx;
+        const minPlayerPercentile = 1 / (2 ** bracketIdx);
+        const scoresById = this._ids.map(id => ({ [id]: this.getScore(id, bracketIdx) }));
+        const sortedIds = this._ids.slice().sort((a, b) => scoresById[b] - scoresById[a]);
+        return sortedIds.slice(
+            0,
+            Math.max(MATCH_SEATS, Math.ceil(sortedIds.length * minPlayerPercentile)),
+        );
     }
 
     public rankMatchResult(orderedPlayers: string[]): void {
-        this._rankings.rankMatchResult(orderedPlayers);
+        const ranks = this._scoresByBracketById[this._bracketIdx] = 
+            this._scoresByBracketById[this._bracketIdx] ?? {};
+        for (let i = 0; i < orderedPlayers.length; ++i) {
+            const p = orderedPlayers[i];
+            const r = ranks[p] = ranks[p] ?? EMPTY_PLAYER_SCORE_INTERNALS;
+            r.matchCount++;
+            if (orderedPlayers.length !== 1) {
+                r.normalizedPlaceSum += i / (orderedPlayers.length - 1);
+            }
+        }
     }
 
     public isDone(): boolean {
         return this._bracketIdx >= this._matchesPerPlayerPerBracket.length;
     }
 
-    public getScore(id: string): number {
-        return this._rankings.getScore(id);
+    public getScore(id: string, bracketIdx?: number): number {
+        bracketIdx = bracketIdx ?? this._bracketIdx;
+        let score = 0;
+        for (let i = 0; i < bracketIdx + 1; ++i) {
+            const s = this._scoresByBracketById[i]?.[id];
+            if (s?.matchCount) {
+                score += i + ((s?.normalizedPlaceSum ?? 0) / s.matchCount);
+            }
+        }
+        return score;
     }
 
     public getScores(): ScoredPlayer[] {
-        return getScoresFromPlayerRankings(this._rankings);
+        return this._ids.map(id => ({
+            address: id as Address,
+            score: this.getScore(id),
+        })).sort((a, b) => b.score - a.score);
     }
 }
