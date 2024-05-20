@@ -96,9 +96,9 @@ export class MatchMaker {
         for (let i = 0; i < orderedPlayers.length; ++i) {
             const p = orderedPlayers[i];
             const r = ranks[p] = ranks[p] ?? EMPTY_PLAYER_SCORE_INTERNALS;
-            r.matchCount++;
-            if (orderedPlayers.length !== 1) {
-                r.normalizedPlaceSum += i / (orderedPlayers.length - 1);
+            if (orderedPlayers.length > 1) {
+                r.matchCount++;
+                r.normalizedPlaceSum += 1 - i / (orderedPlayers.length - 1);
             }
         }
     }
