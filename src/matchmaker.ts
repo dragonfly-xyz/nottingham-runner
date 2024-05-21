@@ -114,7 +114,7 @@ export class MatchMaker {
         for (let i = 0; i < bracketIdx + 1; ++i) {
             const s = this._scoresByBracketById[i]?.[id];
             if (s?.matchCount) {
-                score += i + ((s?.normalizedPlaceSum ?? 0) / s.matchCount);
+                score += ((s?.normalizedPlaceSum ?? 0) / s.matchCount);
                 highestBracket = i;
             }
         }
