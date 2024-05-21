@@ -110,13 +110,15 @@ export class MatchMaker {
     public getScore(id: string, bracketIdx?: number): number {
         bracketIdx = bracketIdx ?? this._bracketIdx;
         let score = 0;
+        let highestBracket = 0;
         for (let i = 0; i < bracketIdx + 1; ++i) {
             const s = this._scoresByBracketById[i]?.[id];
             if (s?.matchCount) {
                 score += i + ((s?.normalizedPlaceSum ?? 0) / s.matchCount);
+                highestBracket = i;
             }
         }
-        return score;
+        return score + highestBracket;
     }
 
     public getScores(): ScoredPlayer[] {
