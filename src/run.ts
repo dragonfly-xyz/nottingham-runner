@@ -163,6 +163,7 @@ export async function runTournament(cfg: RunTournamentConfig)
                                 player: p,
                             })).sort((a, b) => b.score - a.score),
                         duration: Date.now() - matchStartTime,
+                        roundsTaken: result.roundsTaken,
                     });
                 } catch (err) {
                     matchLogger('match_failed', {

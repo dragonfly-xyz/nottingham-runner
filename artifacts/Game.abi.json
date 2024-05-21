@@ -319,18 +319,8 @@
                 "name": "fromAmount",
                 "type": "uint256",
                 "internalType": "uint256"
-              },
-              {
-                "name": "minToAmount",
-                "type": "uint256",
-                "internalType": "uint256"
               }
             ]
-          },
-          {
-            "name": "builderGoldTip",
-            "type": "uint256",
-            "internalType": "uint256"
           }
         ]
       }
@@ -347,7 +337,7 @@
         "internalType": "uint8"
       },
       {
-        "name": "builderIdx",
+        "name": "",
         "type": "uint8",
         "internalType": "uint8"
       },
@@ -375,18 +365,8 @@
                 "name": "fromAmount",
                 "type": "uint256",
                 "internalType": "uint256"
-              },
-              {
-                "name": "minToAmount",
-                "type": "uint256",
-                "internalType": "uint256"
               }
             ]
-          },
-          {
-            "name": "builderGoldTip",
-            "type": "uint256",
-            "internalType": "uint256"
           }
         ]
       }
@@ -456,18 +436,8 @@
                 "name": "fromAmount",
                 "type": "uint256",
                 "internalType": "uint256"
-              },
-              {
-                "name": "minToAmount",
-                "type": "uint256",
-                "internalType": "uint256"
               }
             ]
-          },
-          {
-            "name": "builderGoldTip",
-            "type": "uint256",
-            "internalType": "uint256"
           }
         ]
       }
@@ -585,18 +555,8 @@
                 "name": "fromAmount",
                 "type": "uint256",
                 "internalType": "uint256"
-              },
-              {
-                "name": "minToAmount",
-                "type": "uint256",
-                "internalType": "uint256"
               }
             ]
-          },
-          {
-            "name": "builderGoldTip",
-            "type": "uint256",
-            "internalType": "uint256"
           }
         ]
       }
@@ -987,37 +947,6 @@
     "type": "error",
     "name": "PrecisionError",
     "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "SlippageError",
-    "inputs": [
-      {
-        "name": "fromAssetIdx",
-        "type": "uint8",
-        "internalType": "uint8"
-      },
-      {
-        "name": "toAssetIdx",
-        "type": "uint8",
-        "internalType": "uint8"
-      },
-      {
-        "name": "fromAmount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "minToAmount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "actualToAmount",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
   },
   {
     "type": "error",

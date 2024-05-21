@@ -16,6 +16,7 @@ export interface RunMatchParams {
 
 export interface MatchResult {
     playerResults: { [id: string]: { gasUsed: number; score: number; } };
+    roundsTaken: number;
 }
 
 export interface MatchPool {

@@ -41,6 +41,7 @@ type BlockBuiltEventArgs = { round: number; builderIdx: number; bid: bigint };
 type EmptyBlockEventArgs = { round: number; };
 type SwapEventArgs = { playerIdx: number; fromAssetIdx: number; toAssetIdx: number; fromAmount: bigint; toAmount: bigint; };
 type BundleSettledEventArgs = { playerIdx: number; success: boolean; bundle: PlayerBundleEventParam };
+type BuildPlayerBlockFailedEventArgs = { builderIdx: number; data: Hex };
 
 const RECEIPT_POLLING_INTERVAL = 500;
 
@@ -86,17 +87,20 @@ export class MatchJob implements NodeJob<MatchResult> {
         this._gasLimit = node.blockGasLimit;
         this._logger('game_start', { startTime: Date.now() });
         this._gameAddress = await this._deployGame();
+        let roundsTaken = 0;
         while (!timedOut) {
             const roundResult = await this._playRound();
+            ++roundsTaken;
             if (roundResult.isGameOver) break;
         }
         if (timedOut) {
             throw new Error('match timed out');
         }
         const scores = await this._getScores();
-        this._logger('game_over', { scores });
+        this._logger('final_scores', { scores });
         clearTimeout(timeoutTimer);
         return {
+            roundsTaken,
             playerResults: Object.assign(
                 {},
                 ...this._playerIdsByIdx.map((id, i) => ({
@@ -249,16 +253,19 @@ export class MatchJob implements NodeJob<MatchResult> {
                     this._logger('create_bundle_failed', { playerIdx, builderIdx });
                 },
             } as LogEventHandler<CreateBundleFailedEventArgs>,
+            {
+                event: EVENT_BY_NAME.BuildPlayerBlockFailed,
+                handler: ({ args: { builderIdx }}) => {
+                    this._logger('build_block_failed', { builderIdx });
+                },
+            } as LogEventHandler<BuildPlayerBlockFailedEventArgs>,
         );
         return { isGameOver, timeTaken };
     }
 
     private async _getScores(): Promise<number[]> {
         const r = await this._readGameContract<bigint[]>('scorePlayers');
-        return r
-            .map((_,i) => i)
-            .sort((a, b) => r[a] == r[b] ? 0 : (r[a] < r[b] ? 1 : -1))
-            .map(i => Number(r[i]) / 1e18);
+        return r.map(n => Number(n) / 1e18);
     }
 
     private async _readGameContract<TResult extends any = void>(
