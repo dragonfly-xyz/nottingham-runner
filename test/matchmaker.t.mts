@@ -133,6 +133,50 @@ describe('matchmaker tests', () => {
             expect(mm.getBracketPlayers().length).to.eq(MATCH_SEATS);
         });
 
+        it('each bracket is the highest N scoring players', () => {
+            const players = new NormalPlayers(100);
+            const mm = new TestMatchMaker({
+                ...DEFAULT_SCRIMMAGE_CFG,
+                matchesPerPlayerPerBracket: [10, 10, 10],
+                players: players.players,
+            });
+            while (!mm.isDone()) {
+                const sortedPlayers = mm.getAllPlayers()
+                    .sort((a, b) => mm.getScore(b) - mm.getScore(a));
+                const bracketPlayers = mm.getBracketPlayers();
+                expect(bracketPlayers).to.deep.eq(
+                    sortedPlayers.slice(0, bracketPlayers.length),
+                    `players for bracket ${mm.bracketIdx}`,
+                );
+                const matches = mm.getBracketMatches();
+                for (const m of matches) {
+                    mm.rankMatchResult(players.sortPlayers(m));
+                }
+                mm.advanceBracket();
+            }
+        });
+
+        it('scores according to performance', () => {
+            const players = new NormalPlayers(100);
+            const mm = new TestMatchMaker({
+                ...DEFAULT_SCRIMMAGE_CFG,
+                matchesPerPlayerPerBracket: [100, 100, 100],
+                players: players.players,
+            });
+            while (!mm.isDone()) {
+                const matches = mm.getBracketMatches();
+                for (const m of matches) {
+                    mm.rankMatchResult(players.sortPlayers(m));
+                }
+                mm.advanceBracket();
+            }
+            // TODO: this will only be loosely in order unless we use
+            // very high match count.
+            const scores = mm.getScores();
+            expect(scores[0].address).eq(players.players[99]);
+            expect(scores[99].address).eq(players.players[0]);
+        });
+
         // it('bracket players have the highest scores', () => {
         //     const players = new NormalPlayers(100);
         //     const rankings = new TestPlayerRankings(players.players);

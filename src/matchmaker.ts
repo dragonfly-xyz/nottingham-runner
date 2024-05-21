@@ -82,7 +82,9 @@ export class MatchMaker {
     public getBracketPlayers(bracketIdx?: number): string[] {
         bracketIdx = bracketIdx ?? this._bracketIdx;
         const minPlayerPercentile = 1 / (2 ** bracketIdx);
-        const scoresById = this._ids.map(id => ({ [id]: this.getScore(id, bracketIdx) }));
+        const scoresById = Object.assign({},
+            ...this._ids.map(id => ({ [id]: this.getScore(id, bracketIdx) })),
+        );
         const sortedIds = this._ids.slice().sort((a, b) => scoresById[b] - scoresById[a]);
         return sortedIds.slice(
             0,
@@ -95,7 +97,7 @@ export class MatchMaker {
             this._scoresByBracketById[this._bracketIdx] ?? {};
         for (let i = 0; i < orderedPlayers.length; ++i) {
             const p = orderedPlayers[i];
-            const r = ranks[p] = ranks[p] ?? EMPTY_PLAYER_SCORE_INTERNALS;
+            const r = ranks[p] = ranks[p] ?? { ...EMPTY_PLAYER_SCORE_INTERNALS };
             if (orderedPlayers.length > 1) {
                 r.matchCount++;
                 r.normalizedPlaceSum += 1 - i / (orderedPlayers.length - 1);
