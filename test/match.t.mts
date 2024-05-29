@@ -21,7 +21,7 @@ describe('match tests', () => {
     
     it('can run a match with empty players', async () => {
         const seed = toHex(crypto.randomBytes(32));
-        let gameOverLogData;
+        let finalScoresLogData;
         const job = new MatchJob({
             seed,
             players: {
@@ -30,13 +30,13 @@ describe('match tests', () => {
                 ['c']: { bytecode: EMTPY_BYTECODE },
             },
             logger: (name, data) => {
-                if (name === 'game_over') {
-                    gameOverLogData = data;
+                if (name === 'final_scores') {
+                    finalScoresLogData = data;
                 }
             },
     });
         const { playerResults } = await node.run(job);
-        expect(gameOverLogData?.scores?.length).to.eq(3);
+        expect(finalScoresLogData?.scores?.length).to.eq(3);
         expect(Object.keys(playerResults)).to.deep.eq(['a','b','c']);
     });
 
@@ -76,7 +76,6 @@ describe('match tests', () => {
 
     it.skip('can run a match with eternal players', async () => {
         const seed = toHex(crypto.randomBytes(32));
-        let gameOverLogData;
         const job = new MatchJob({
             seed,
             players: {
@@ -86,9 +85,7 @@ describe('match tests', () => {
                 ['d']: { bytecode: ETERNAL_PLAYER_BYTECODE },
             },
             logger: (name, data) => {
-                if (name === 'game_over') {
-                    gameOverLogData = data;
-                } else if (name === 'round_played') {
+                if (name === 'round_played') {
                     console.log(data.round, data.gas, data.timeTaken);
                 }
             },

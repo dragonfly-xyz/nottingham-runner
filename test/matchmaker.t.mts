@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { MatchMaker, MatchMakerConfig, MATCH_SEATS } from '../src/matchmaker.js';
+import { MatchMaker, MatchMakerConfig } from '../src/matchmaker.js';
 import erf from '@stdlib/math-base-special-erf';
 
 function cdf(x: number, mean: number = 0.5, std: number = 1/3): number {
@@ -46,11 +46,14 @@ class TestMatchMaker extends MatchMaker {
     }
 }
 
+const MATCH_SEATS = 4;
+
 describe('matchmaker tests', () => {
     describe('scrimmage', () => {
         const DEFAULT_SCRIMMAGE_CFG = {
             matchesPerPlayerPerBracket: [1, 2, 3],
             seed: '',
+            matchSeats: MATCH_SEATS,
         };
 
         it('can generate matches', () => {

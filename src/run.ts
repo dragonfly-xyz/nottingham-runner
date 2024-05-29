@@ -24,6 +24,7 @@ export interface TournamentConfig {
     tolerant?: boolean;
     brackets?: number[];
     whitelist?: Address[];
+    matchSeats?: number;
 }
 
 export interface PrivateTournamentConfig extends TournamentConfig {
@@ -117,6 +118,7 @@ export async function runTournament(cfg: RunTournamentConfig)
         ...(cfg.brackets ? { matchesPerPlayerPerBracket: cfg.brackets } : {}),
         seed,
         players: Object.keys(playerCodes),
+        matchSeats: cfg.matchSeats ?? 3,
     });
     while (!mm.isDone()) {
         let matchPromises = [] as Array<Promise<any>>;

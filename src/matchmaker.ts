@@ -16,18 +16,18 @@ const EMPTY_PLAYER_SCORE_INTERNALS: PlayerScoreInternals = {
     matchCount: 0,
 };
 
-export const MATCH_SEATS = 4;
-
 export type MatchMakerConfig = {
     seed: string;
     matchesPerPlayerPerBracket: number[];
     players: string[];
+    matchSeats: number;
 }
 
 export class MatchMaker {
     protected readonly _prng: Prng;
     protected readonly _ids: string[];
     protected readonly _matchesPerPlayerPerBracket: number[];
+    protected readonly _matchSeats: number;
     protected _bracketIdx: number = 0;
     protected _scoresByBracketById: Array<{ [id: string]: PlayerScoreInternals }> = [];
 
@@ -39,6 +39,7 @@ export class MatchMaker {
         this._prng = new Prng(cfg.seed);
         this._matchesPerPlayerPerBracket = cfg.matchesPerPlayerPerBracket;
         this._ids = cfg.players.slice();
+        this._matchSeats = cfg.matchSeats;
     }
 
     public get maxBrackets(): number {
@@ -56,14 +57,15 @@ export class MatchMaker {
         const matches = [] as string[][];
         for (let i = 0; i < this._matchesPerPlayerPerBracket[this._bracketIdx]; ++i) {
             const playerIds = this._prng.shuffle(this.getBracketPlayers(this._bracketIdx));
-            if (playerIds.length < MATCH_SEATS) {
-                throw new Error(`not enough players for a full match: ${playerIds.length}/${MATCH_SEATS}`);
+            if (playerIds.length < this._matchSeats) {
+                throw new Error(`not enough players for a full match: ${
+                    playerIds.length}/${this._matchSeats}`);
             }
-            const matchCount = Math.ceil(playerIds.length / MATCH_SEATS);
+            const matchCount = Math.ceil(playerIds.length / this._matchSeats);
             for (let j = 0; j < matchCount; ++j) {
                 const matchPlayers = [] as string[];
-                for (let k = 0; k < MATCH_SEATS; ++k) {
-                    matchPlayers.push(playerIds[(j * MATCH_SEATS + k) % playerIds.length]);
+                for (let k = 0; k < this._matchSeats; ++k) {
+                    matchPlayers.push(playerIds[(j * this._matchSeats + k) % playerIds.length]);
                 }
                 matches.push(matchPlayers);
             }
@@ -88,7 +90,7 @@ export class MatchMaker {
         const sortedIds = this._ids.slice().sort((a, b) => scoresById[b] - scoresById[a]);
         return sortedIds.slice(
             0,
-            Math.max(MATCH_SEATS, Math.ceil(sortedIds.length * minPlayerPercentile)),
+            Math.max(this._matchSeats, Math.ceil(sortedIds.length * minPlayerPercentile)),
         );
     }
 
