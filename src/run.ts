@@ -25,6 +25,7 @@ export interface TournamentConfig {
     brackets?: number[];
     whitelist?: Address[];
     matchSeats?: number;
+    seasonStartBlock?: number;
 }
 
 export interface PrivateTournamentConfig extends TournamentConfig {
@@ -98,6 +99,7 @@ export async function runTournament(cfg: RunTournamentConfig)
             logger,
             seasonPrivateKey,
             szn,
+            seasonStartBlock: cfg.seasonStartBlock,
             whitelist: cfg.whitelist,
         });
     }
@@ -199,6 +201,7 @@ async function getDecryptedPlayerCodes(opts: {
     contestAddress: Address;
     szn: number;
     seasonPrivateKey: Hex;
+    seasonStartBlock?: number;
     logger: Logger;
     whitelist?: Address[],
 }): Promise<PlayerCodes> {
@@ -207,7 +210,7 @@ async function getDecryptedPlayerCodes(opts: {
         : null;
     const { client, contestAddress, szn, seasonPrivateKey, logger } = opts;
     return Object.assign({},
-        ...Object.entries(await getSeasonPlayers(client, contestAddress, szn))
+        ...Object.entries(await getSeasonPlayers(client, contestAddress, szn, opts.seasonStartBlock))
             .filter(([id]) => !whitelistMap || id.toLowerCase() in whitelistMap)
             .map(([id, { codeHash, encryptedAesKey, encryptedCode, iv }]) => {
                 let code: Hex;
