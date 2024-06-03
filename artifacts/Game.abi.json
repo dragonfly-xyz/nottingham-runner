@@ -145,6 +145,19 @@
   },
   {
     "type": "function",
+    "name": "lastBuilder",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "lastWinningBid",
     "inputs": [],
     "outputs": [
@@ -333,11 +346,6 @@
     "inputs": [
       {
         "name": "playerIdx",
-        "type": "uint8",
-        "internalType": "uint8"
-      },
-      {
-        "name": "",
         "type": "uint8",
         "internalType": "uint8"
       },
@@ -881,7 +889,7 @@
     "name": "GameSetupError",
     "inputs": [
       {
-        "name": "msg",
+        "name": "message",
         "type": "string",
         "internalType": "string"
       }
