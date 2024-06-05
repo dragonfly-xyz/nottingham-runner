@@ -48,7 +48,7 @@ class TestMatchMaker extends MatchMaker {
 
 const MATCH_SEATS = 4;
 
-describe('matchmaker tests', () => {
+describe.only('matchmaker tests', () => {
     describe('scrimmage', () => {
         const DEFAULT_SCRIMMAGE_CFG = {
             matchesPerPlayerPerBracket: [1, 2, 3],
@@ -178,6 +178,25 @@ describe('matchmaker tests', () => {
             const scores = mm.getScores();
             expect(scores[0].address).eq(players.players[99]);
             expect(scores[99].address).eq(players.players[0]);
+        });
+
+        it('getScores() is in range', () => {
+            const mm = new TestMatchMaker({
+                ...DEFAULT_SCRIMMAGE_CFG,
+                matchesPerPlayerPerBracket: [1, 1],
+                players: ['a', 'b', 'c'],
+                matchSeats: 2,
+            });
+            while (!mm.isDone()) {
+                const matches = mm.getBracketMatches();
+                for (const m of matches) {
+                    mm.rankMatchResult(m.slice().sort());
+                }
+                mm.advanceBracket();
+            }
+            expect(mm.getScore('a')).to.eq(2, 'a');
+            expect(mm.getScore('b')).to.eq(0.5, 'b');
+            expect(mm.getScore('c')).to.eq(0, 'c');
         });
 
         // it('bracket players have the highest scores', () => {
