@@ -141,19 +141,29 @@ export async function getSeasonPlayers(
     szn: number,
     startBlock?: number,
 ) : Promise<SeasonPlayers> {
-    const logs = sortLogs((await Promise.all([
-        client.getLogs({
+    const [seasonCodeCount, logs] = await Promise.all([
+        client.readContract({
+            abi: CONTEST_ABI,
             address: contestAddress,
-            event: CODE_COMMITTED_EVENT,
-            args: { season: szn },
-            fromBlock: startBlock ? BigInt(startBlock) : 'earliest',
-        }),
-        client.getLogs({
-            address: contestAddress,
-            event: RETIRED_EVENT,
-            fromBlock: startBlock ? BigInt(startBlock) : 'earliest',
-        }),
-    ])).flat(1), true);
+            functionName: 'playerCodeCount',
+            args: [szn],
+        }) as Promise<number>,
+        (async () =>
+            sortLogs((await Promise.all([
+                client.getLogs({
+                    address: contestAddress,
+                    event: CODE_COMMITTED_EVENT,
+                    args: { season: szn },
+                    fromBlock: startBlock ? BigInt(startBlock) : 'earliest',
+                }),
+                client.getLogs({
+                    address: contestAddress,
+                    event: RETIRED_EVENT,
+                    fromBlock: startBlock ? BigInt(startBlock) : 'earliest',
+                }),
+            ])).flat(1), true)
+        )(),
+    ]);
     const commits = {} as {
         [player: Address]: ({ codeHash: Hex; } & EncryptedCodeSubmission) | null
     };
@@ -176,9 +186,15 @@ export async function getSeasonPlayers(
             },
         } as LogEventHandler<RetiredEventArgs>,
     )
-    return Object.assign({},
+
+    const result = Object.assign({},
         ...Object.entries(commits)
             .filter(([k, v]) => !!v)
             .map(([k, v]) => ({ [k]: v })),
     );
+    const count = Object.keys(result).length;
+    if (count !== seasonCodeCount) {
+        throw new Error(`Expected ${seasonCodeCount} code submissions but only found ${count}!`);
+    }
+    return result;
 }
