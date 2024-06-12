@@ -1,8 +1,7 @@
-import { Address } from "viem";
 import { Prng } from "./prng.js";
 
 export interface ScoredPlayer {
-    address: Address;
+    name: string;
     score: number;
 }
 
@@ -125,7 +124,7 @@ export class MatchMaker {
 
     public getScores(): ScoredPlayer[] {
         return this._ids.map(id => ({
-            address: id as Address,
+            name: id as string,
             score: this.getScore(id),
         })).sort((a, b) => b.score - a.score);
     }

@@ -48,7 +48,7 @@ class TestMatchMaker extends MatchMaker {
 
 const MATCH_SEATS = 4;
 
-describe.only('matchmaker tests', () => {
+describe('matchmaker tests', () => {
     describe('scrimmage', () => {
         const DEFAULT_SCRIMMAGE_CFG = {
             matchesPerPlayerPerBracket: [1, 2, 3],
@@ -176,8 +176,8 @@ describe.only('matchmaker tests', () => {
             // TODO: this will only be loosely in order unless we use
             // very high match count.
             const scores = mm.getScores();
-            expect(scores[0].address).eq(players.players[99]);
-            expect(scores[99].address).eq(players.players[0]);
+            expect(scores[0].name).eq(players.players[99]);
+            expect(scores[99].name).eq(players.players[0]);
         });
 
         it('getScores() is in range', () => {
