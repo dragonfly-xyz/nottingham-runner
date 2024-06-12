@@ -2,126 +2,52 @@ import {
     Hex,
     Address,
     keccak256,
-    PublicClient,
 } from 'viem';
-import { getSeasonKeys, getSeasonPlayers } from './contest.js';
 import { MatchMaker, ScoredPlayer } from './matchmaker.js';
 import { Logger, MatchPool } from './pools/match-pool.js';
-import { decryptPlayerCode, deriveSeasonPublicKey } from './encrypt.js';
+import { EncryptedCodeSubmission, decryptPlayerCode } from './encrypt.js';
 
 export interface PlayerCodes {
-    [address: Address]: Hex;
+    [name: string]: Hex;
 }
 
 export interface TournamentConfig {
-    szn: number;
-    contestAddress: Address;
-    mode: MatchMakingMode;
     matchPool: MatchPool,
-    client: PublicClient,
     logger?: Logger;
     matchTimeout?: number;
     tolerant?: boolean;
-    brackets?: number[];
-    whitelist?: Address[];
-    matchSeats?: number;
-    seasonStartBlock?: number;
+    brackets: number[];
+    players: PlayerCodes;
+    matchSeats: number;
     seed?: string;
 }
 
-export interface PrivateTournamentConfig extends TournamentConfig {
-    seasonPrivateKey: Hex;
-}
-
-export interface ExplicitTournamentConfig extends TournamentConfig {
-    playerCodes: PlayerCodes;
-}
-
 const DEFAULT_LOGGER = (() => {}) as Logger;
-
-const SCRIMMAGE_MATCHMAKER_CONFIG = {
-    matchesPerPlayerPerBracket: [3, 4, 5],
-};
-
-const TOURNAMENT_MATCHMAKER_CONFIG = {
-    matchesPerPlayerPerBracket: [3, 4, 6, 10],
-};
-
-export enum MatchMakingMode {
-    Scrimmage = 'scrimmage',
-    Tournament = 'tournament',
-}
-
-type RunTournamentConfig = TournamentConfig | PrivateTournamentConfig | ExplicitTournamentConfig;
-
-function isPrivateTournamentConfig(cfg: RunTournamentConfig)
-    : cfg is PrivateTournamentConfig
-{
-    return !!(cfg as any).seasonPrivateKey;
-}
-
-function isExplicitTournamentConfig(cfg: RunTournamentConfig)
-    : cfg is ExplicitTournamentConfig
-{
-    return !!(cfg as any).playerCodes;
-}
 
 export function augmentLogger(logger: Logger, extraData: object): Logger {
     return (name, data) => logger(name, { ...data, ...extraData });
 }
 
-export async function runTournament(cfg: RunTournamentConfig)
+export async function runTournament(cfg: TournamentConfig)
     : Promise<ScoredPlayer[]>
 {
     const startTime = Date.now();
-    const { szn, contestAddress, client } = cfg;
-    const logger = augmentLogger(cfg.logger ?? DEFAULT_LOGGER, { season: szn });
-    let seasonPrivateKey: Hex;
-    let seasonPublicKey: Hex;
-    let playerCodes: PlayerCodes = {};
+    const { players } = cfg;
+    const logger = cfg.logger ?? DEFAULT_LOGGER;
 
-    if (isExplicitTournamentConfig(cfg)) {
-        playerCodes = cfg.playerCodes;
-    } else {
-        if (isPrivateTournamentConfig(cfg)) {
-            seasonPrivateKey = cfg.seasonPrivateKey;
-            seasonPublicKey = deriveSeasonPublicKey(seasonPrivateKey);
-        } else {
-            const keys = await getSeasonKeys(client, contestAddress, szn);
-            if (!keys.privateKey) {
-                throw new Error(`Season ${szn} has not been revealed yet and no key was provided.`);
-            }
-            seasonPrivateKey = keys.privateKey!;
-            seasonPublicKey = keys.publicKey!;
-        }
-        playerCodes = await getDecryptedPlayerCodes({
-            client,
-            contestAddress,
-            logger,
-            seasonPrivateKey,
-            szn,
-            seasonStartBlock: cfg.seasonStartBlock,
-            whitelist: cfg.whitelist,
-        });
-    }
-
-    if (Object.keys(playerCodes).length === 0) {
+    if (Object.keys(players).length === 0) {
         logger('tournament_aborted', {reason: 'no players' });
         return [];
     }
     
-    logger('tournament_start', { players: Object.keys(playerCodes) });
+    logger('tournament_start', { players: Object.keys(players) });
 
-    const seed = keccak256(Buffer.from(cfg.seed ?? seasonPublicKey ?? ''));
+    const seed = keccak256(Buffer.from(cfg.seed ?? crypto.randomUUID()));
     const mm: MatchMaker = new MatchMaker({
-        ...(cfg.mode === MatchMakingMode.Tournament
-                ? TOURNAMENT_MATCHMAKER_CONFIG
-                : SCRIMMAGE_MATCHMAKER_CONFIG
-            ),
-        ...(cfg.brackets ? { matchesPerPlayerPerBracket: cfg.brackets } : {}),
         seed,
-        players: Object.keys(playerCodes),
-        matchSeats: cfg.matchSeats ?? 3,
+        matchesPerPlayerPerBracket: cfg.brackets,
+        players: Object.keys(players),
+        matchSeats: cfg.matchSeats,
     });
     while (!mm.isDone()) {
         let matchPromises = [] as Array<Promise<any>>;
@@ -144,7 +70,7 @@ export async function runTournament(cfg: RunTournamentConfig)
                         players: Object.assign(
                             {},
                             ...matchPlayers.map(id => ({
-                                [id]: { bytecode: playerCodes[id] },
+                                [id]: { bytecode: players[id] },
                             })),
                         ),
                         timeout: cfg.matchTimeout,
@@ -188,7 +114,7 @@ export async function runTournament(cfg: RunTournamentConfig)
         await Promise.all(matchPromises);
         bracketLogger('bracket_completed', {
             duration: Date.now() - bracketStartTime,
-            scores: mm.getBracketPlayers().map(id => ({ address: id, score: mm.getScore(id) })),
+            scores: mm.getBracketPlayers().map(id => ({ name: id, score: mm.getScore(id) })),
         });
         mm.advanceBracket();
     }
@@ -197,42 +123,19 @@ export async function runTournament(cfg: RunTournamentConfig)
     return scores;
 }
 
-async function getDecryptedPlayerCodes(opts: {
-    client: PublicClient;
-    contestAddress: Address;
-    szn: number;
+export function decryptPlayerSubmission(opts: {
+    player: Address;
     seasonPrivateKey: Hex;
-    seasonStartBlock?: number;
-    logger: Logger;
-    whitelist?: Address[],
-}): Promise<PlayerCodes> {
-    const whitelistMap = opts.whitelist
-        ? Object.assign({}, ...(opts.whitelist.map(a => ({ [a.toLowerCase()]: true }))))
-        : null;
-    const { client, contestAddress, szn, seasonPrivateKey, logger } = opts;
-    return Object.assign({},
-        ...Object.entries(await getSeasonPlayers(client, contestAddress, szn, opts.seasonStartBlock))
-            .filter(([id]) => !whitelistMap || id.toLowerCase() in whitelistMap)
-            .map(([id, { codeHash, encryptedAesKey, encryptedCode, iv }]) => {
-                let code: Hex;
-                try {
-                    code = decryptPlayerCode(
-                        seasonPrivateKey,
-                        id as Hex,
-                        { encryptedAesKey, encryptedCode, iv },
-                    );
-                    if (keccak256(code) !== codeHash) {
-                        throw new Error(`Code hash does not match decrypted submission.`);
-                    }
-                } catch (err) {
-                    logger('player_submission_error', {
-                        player: id,
-                        season: szn,
-                    });
-                    console.warn(`Failed to decrypt submission from ${id}:`, err);
-                    return {};
-                }
-                return { [id as Address]: code };
-            }),
+    codeHash: Hex;
+    submission: EncryptedCodeSubmission;
+}): Hex {
+    const code = decryptPlayerCode(
+        opts.seasonPrivateKey,
+        opts.player,
+        opts.submission,
     );
+    if (keccak256(code) !== opts.codeHash) {
+        throw new Error(`Code hash does not match`);
+    }
+    return code;
 }
