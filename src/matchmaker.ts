@@ -89,7 +89,7 @@ export class MatchMaker {
         const sortedIds = this._ids.slice().sort((a, b) => scoresById[b] - scoresById[a]);
         return sortedIds.slice(
             0,
-            Math.max(this._matchSeats, Math.ceil(sortedIds.length * minPlayerPercentile)),
+            Math.max(Math.ceil(this._matchSeats * 1.5), Math.ceil(sortedIds.length * minPlayerPercentile)),
         );
     }
 

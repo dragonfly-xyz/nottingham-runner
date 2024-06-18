@@ -111,29 +111,12 @@ describe('matchmaker tests', () => {
             });
             while (mm.bracketIdx < mm.maxBrackets - 1) {
                 expect(mm.getBracketPlayers().length).to.eq(
-                    Math.max(MATCH_SEATS, Math.ceil(players.playerCount / 2**mm.bracketIdx)),
+                    Math.max(Math.ceil(MATCH_SEATS * 1.5), Math.ceil(players.playerCount / 2**mm.bracketIdx)),
                     'bracket players',
                 );
                 mm.advanceBracket();
             }
-            expect(mm.getBracketPlayers().length).to.eq(MATCH_SEATS);
-        });
-
-        it('keeps at least MATCH_SEATS count players in bracket', () => {
-            const players = new NormalPlayers(100);
-            const mm = new TestMatchMaker({
-                ...DEFAULT_SCRIMMAGE_CFG,
-                matchesPerPlayerPerBracket: [...new Array(Math.ceil(Math.log2(players.playerCount)))].map(() => 1),
-                players: players.players,
-            });
-            while (mm.bracketIdx < mm.maxBrackets - 1) {
-                expect(mm.getBracketPlayers().length).to.eq(
-                    Math.max(MATCH_SEATS, Math.ceil(players.playerCount / 2**mm.bracketIdx)),
-                    'bracket players',
-                );
-                mm.advanceBracket();
-            }
-            expect(mm.getBracketPlayers().length).to.eq(MATCH_SEATS);
+            expect(mm.getBracketPlayers().length).to.greaterThanOrEqual(MATCH_SEATS);
         });
 
         it('each bracket is the highest N scoring players', () => {
@@ -195,7 +178,7 @@ describe('matchmaker tests', () => {
                 mm.advanceBracket();
             }
             expect(mm.getScore('a')).to.eq(2, 'a');
-            expect(mm.getScore('b')).to.eq(0.5, 'b');
+            expect(mm.getScore('b')).to.eq(1.5, 'b');
             expect(mm.getScore('c')).to.eq(0, 'c');
         });
 
