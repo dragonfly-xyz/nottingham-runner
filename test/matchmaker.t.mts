@@ -177,9 +177,9 @@ describe('matchmaker tests', () => {
                 }
                 mm.advanceBracket();
             }
-            expect(mm.getScore('a')).to.eq(2, 'a');
-            expect(mm.getScore('b')).to.eq(1.5, 'b');
-            expect(mm.getScore('c')).to.eq(0, 'c');
+            expect(mm.getScore('a')).to.eq(3, 'a');
+            expect(mm.getScore('b')).to.eq(2.75, 'b');
+            expect(mm.getScore('c')).to.eq(1.5, 'c');
         });
 
         // it('bracket players have the highest scores', () => {

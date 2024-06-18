@@ -101,7 +101,7 @@ export class MatchMaker {
             const r = ranks[p] = ranks[p] ?? { ...EMPTY_PLAYER_SCORE_INTERNALS };
             if (orderedPlayers.length > 1) {
                 r.matchCount++;
-                r.normalizedPlaceSum += 1 - i / (orderedPlayers.length - 1);
+                r.normalizedPlaceSum += 1 - i / orderedPlayers.length;
             }
         }
     }
@@ -116,7 +116,7 @@ export class MatchMaker {
         for (let i = 0; i < bracketIdx + 1; ++i) {
             const s = this._scoresByBracketById[i]?.[id];
             if (s?.matchCount) {
-                score += ((s?.normalizedPlaceSum ?? 0) / s.matchCount);
+                score += (i+1) * ((s?.normalizedPlaceSum ?? 0) / s.matchCount);
             }
         }
         return score;
