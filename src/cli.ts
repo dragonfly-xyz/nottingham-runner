@@ -11,13 +11,14 @@ yargs(process.argv.slice(2)).command(
         .positional('season', { type: 'number', desc: 'season index', demandOption: true })
         .option('data-url', { alias: 'u', type: 'string', demandOption: true, default: process.env.DATA_URL })
         .option('seed', { alias: 's', type: 'string' })
+        .option('privateKey', { alias: 'k', type: 'string', coerce: x => x as Hex })
         .option('brackets', { alias: 'b', type: 'number', array: true, default: [5,5,5] })
         .option('workers', { alias: 'w', type: 'number', default: 8 })
         .option('seats', { alias: 'S', type: 'number', default: 4 })
     ,
     async argv => {
         const players = await fetchJson<Array<{name: string; address: Address;}>>(
-            new URL('/players', argv.dataUrl),
+            new URL([argv.dataUrl, 'players'].join('/')),
         );
         const addressToName = Object.assign({},
             ...players.map(p => ({ [p.address]: p.name })),
@@ -26,6 +27,7 @@ yargs(process.argv.slice(2)).command(
             argv.season,
             argv.dataUrl,
             players.map(p => p.address),
+            argv.privateKey,
         );
 
         let timeTaken = Date.now();
@@ -49,6 +51,7 @@ yargs(process.argv.slice(2)).command(
         
         console.log(scores);
         console.log(`Completed after ${(timeTaken / 60e3).toFixed(1)} minutes.`);
+        process.exit(0);
     },
 ).parse();
 
@@ -65,25 +68,27 @@ export async function fetchPlayerCodes(
     season: number,
     dataUrl: string,
     players?: Address[],
+    privateKey?: Hex,
 ): Promise<PlayerCodes>
 {
     const { events: seasonEvents } = await fetchJson<{ events: ChainEvent[]}>(
-        new URL('/indexed/seasons', dataUrl),
+        new URL([dataUrl, 'indexed/seasons'].join('/')),
     );
-    let privateKey: Hex | null = null;
-    for (const event of seasonEvents) {
-        if (event.eventName === 'SeasonRevealed') {
-            if (event.season === season) {
-                privateKey = event.privateKey;
-                break;
+    if (!privateKey) {
+        for (const event of seasonEvents) {
+            if (event.eventName === 'SeasonRevealed') {
+                if (event.season === season) {
+                    privateKey = event.privateKey;
+                    break;
+                }
             }
         }
-    }
-    if (!privateKey) {
-        throw new Error(`Season ${season} has not yet been revealed.`);
+        if (!privateKey) {
+            throw new Error(`Season ${season} has not yet been revealed.`);
+        }
     }
     const { events: codeEvents } = await fetchJson<{ events: ChainEvent[] }>(
-        new URL('/indexed/code', dataUrl),
+        new URL([dataUrl, 'indexed/code'].join('/')),
         { players, season },
     );
     const codes = {} as PlayerCodes;
