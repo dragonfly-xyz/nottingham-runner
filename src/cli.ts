@@ -1,9 +1,10 @@
 import 'colors';
 import process from 'process';
 import yargs from 'yargs';
-import { Hex, Address } from 'viem';
+import { Hex, Address, isHex } from 'viem';
 import { PlayerCodes, decryptPlayerSubmission, runTournament } from './run.js';
 import { LocalMatchPool } from './pools/local-match-pool.js';
+import fs from 'fs/promises';
 
 yargs(process.argv.slice(2)).command(
     '$0 <season>', 'run a tournament for a season',
@@ -15,6 +16,7 @@ yargs(process.argv.slice(2)).command(
         .option('brackets', { alias: 'b', type: 'number', array: true, default: [5,5,5] })
         .option('workers', { alias: 'w', type: 'number', default: 8 })
         .option('seats', { alias: 'S', type: 'number', default: 4 })
+        .option('player', { alias: 'p', type: 'string', array: true, coerce: x => x.map(s => s.split(':')) as Array<[Address, string]> })
     ,
     async argv => {
         const players = await fetchJson<Array<{name: string; address: Address;}>>(
@@ -29,6 +31,20 @@ yargs(process.argv.slice(2)).command(
             players.map(p => p.address),
             argv.privateKey,
         );
+        for (const [address, path] of argv.player) {
+            let code: Hex;
+            if (isHex(path)) {
+                code = path;
+            } else {
+                const { bytecode: { object: code_ } } = JSON.parse(await fs.readFile(path, 'utf-8'));
+                code = code_;
+            }
+            if (code === '0x') {
+                delete playerCodes[address];
+            } else {
+                playerCodes[address] = code;
+            }
+        }
 
         let timeTaken = Date.now();
         const matchPool = await LocalMatchPool.create(argv.workers);
