@@ -1,13 +1,13 @@
 import 'colors';
 import process from 'process';
-import yargs from 'yargs';
-import { Hex, Address, isHex } from 'viem';
+import yargs, { coerce } from 'yargs';
+import { Hex, Address, isHex, getAddress } from 'viem';
 import { PlayerCodes, decryptPlayerSubmission, runTournament } from './run.js';
 import { LocalMatchPool } from './pools/local-match-pool.js';
 import fs from 'fs/promises';
 
 yargs(process.argv.slice(2)).command(
-    '$0 <season>', 'run a tournament for a season',
+    'run <season>', 'run a tournament for a season',
     yargs => yargs
         .positional('season', { type: 'number', desc: 'season index', demandOption: true })
         .option('data-url', { alias: 'u', type: 'string', demandOption: true, default: process.env.DATA_URL })
@@ -68,6 +68,25 @@ yargs(process.argv.slice(2)).command(
         console.log(scores);
         console.log(`Completed after ${(timeTaken / 60e3).toFixed(1)} minutes.`);
         process.exit(0);
+    },
+).command(
+    'bytecode <season> [players..]', 'fetch and decrypt player bytecode from a past season',
+    yargs => yargs
+        .positional('season', { type: 'number', desc: 'season index', demandOption: true })
+        .positional('players', { type: 'string', desc: 'player addresses', array: true, coerce: x => x.map(v => getAddress(v)) })
+        .option('data-url', { alias: 'u', type: 'string', demandOption: true, default: process.env.DATA_URL })
+        .option('privateKey', { alias: 'k', type: 'string', coerce: x => x as Hex })
+    ,
+    async argv => {
+        const codes = await fetchPlayerCodes(
+            argv.season,
+            argv.dataUrl,
+            argv.players,
+            argv.privateKey,
+        );
+        for (const addr in codes) {
+            console.log(`${addr}: ${codes[addr]}`);
+        }
     },
 ).parse();
 
