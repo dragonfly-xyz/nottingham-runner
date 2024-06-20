@@ -16,7 +16,7 @@ yargs(process.argv.slice(2)).command(
         .option('brackets', { alias: 'b', type: 'number', array: true, default: [5,5,5] })
         .option('workers', { alias: 'w', type: 'number', default: 8 })
         .option('seats', { alias: 'S', type: 'number', default: 4 })
-        .option('player', { alias: 'p', type: 'string', array: true, coerce: x => x.map(s => s.split(':')) as Array<[Address, string]> })
+        .option('player', { alias: 'p', type: 'string', array: true, coerce: x => x.map(s => s.split(':')) as Array<[Address, string]>, default: [] })
     ,
     async argv => {
         const players = await fetchJson<Array<{name: string; address: Address;}>>(
@@ -82,10 +82,13 @@ yargs(process.argv.slice(2)).command(
         .option('privateKey', { alias: 'k', type: 'string', coerce: x => x as Hex })
     ,
     async argv => {
+        const privateKey = argv.privateKey
+            ? argv.privateKey
+            : await fetchSeasonKey(argv.dataUrl, argv.season); 
         const codes = await fetchPlayerCodes(
             argv.season,
             argv.dataUrl,
-            argv.privateKey,
+            privateKey,
             argv.players,
         );
         for (const addr in codes) {
@@ -103,6 +106,15 @@ interface ChainEvent {
     [field: string]: any;
 }
 
+export function compareChainEvents(a: ChainEvent, b: ChainEvent): number {
+    if (a.eventBlockNumber === b.eventBlockNumber) {
+        if (a.eventTransactionIndex === b.eventTransactionIndex) {
+            return a.eventLogIndex - b.eventLogIndex;
+        }
+        return a.eventTransactionIndex - b.eventTransactionIndex;
+    }
+    return a.eventBlockNumber - b.eventBlockNumber;
+}
 
 async function fetchSeasonKey(dataUrl: string, season: number): Promise<Hex> {
     const { events: seasonEvents } = await fetchJson<{ events: ChainEvent[]}>(
@@ -128,6 +140,7 @@ async function fetchPlayerCodes(
         new URL([dataUrl, 'indexed/code'].join('/')),
         { players, season },
     );
+    codeEvents.sort((a, b) => compareChainEvents(b, a));
     const codes = {} as PlayerCodes;
     for (const event of codeEvents) {
         if (event.eventName !== 'CodeCommitted') {
@@ -144,7 +157,12 @@ async function fetchPlayerCodes(
             console.warn(`Failed to decrypt player ${event.player}: ${err}`);
         }
     }
-    return codes;
+    return Object.assign(
+        {},
+        ...Object.entries(codes)
+           .filter(([,v]) => v !== '0x')
+           .map(([k, v]) => ({ [k]: v })),
+    );
 }
 
 async function fetchJson<T = object>(
