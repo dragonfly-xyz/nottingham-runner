@@ -1,10 +1,11 @@
 import 'colors';
 import process from 'process';
 import yargs, { coerce } from 'yargs';
-import { Hex, Address, isHex, getAddress } from 'viem';
+import { Hex, Address, isHex, getAddress, createPublicClient, http, decodeEventLog } from 'viem';
 import { PlayerCodes, decryptPlayerSubmission, runTournament } from './run.js';
 import { LocalMatchPool } from './pools/local-match-pool.js';
 import fs from 'fs/promises';
+import { EncryptedCodeSubmission } from './encrypt.js';
 
 yargs(process.argv.slice(2)).command(
     'run <season>', 'run a tournament for a season',
@@ -74,7 +75,7 @@ yargs(process.argv.slice(2)).command(
         process.exit(0);
     },
 ).command(
-    'bytecode <season> [players..]', 'fetch and decrypt player bytecode from a past season',
+    'last-bytecode <season> [players..]', 'fetch and decrypt player bytecode from a past season',
     yargs => yargs
         .positional('season', { type: 'number', desc: 'season index', demandOption: true })
         .positional('players', { type: 'string', desc: 'player addresses', array: true, coerce: x => x.map(v => getAddress(v)) })
@@ -94,6 +95,43 @@ yargs(process.argv.slice(2)).command(
         for (const addr in codes) {
             console.log(`${addr}: ${codes[addr]}`);
         }
+    },
+).command(
+    'tx-bytecode <tx>', 'fetch and decrypt bytecode from a tx hash',
+    yargs => yargs
+        .positional('tx', { type: 'string', demandOption: true, coerce: x => x as Hex })
+        .option('rpc-url', { alias: 'r', type: 'string', demandOption: true })
+        .option('data-url', { alias: 'u', type: 'string', demandOption: true, default: process.env.DATA_URL })
+        .option('privateKey', { alias: 'k', type: 'string', coerce: x => x as Hex })
+    ,
+    async argv => {
+        const client = createPublicClient({ transport: http(argv.rpcUrl) });
+        const r = await client.getTransactionReceipt({ hash: argv.tx });
+        let args: any = null;
+        for (const log of r.logs) {
+            try {
+                const decoded = decodeEventLog({
+                    abi: [CODE_COMMITTED_ABI],
+                    topics: log.topics,
+                    data: log.data,
+                }) as any;
+                args = decoded.args;
+            } catch {}
+        }
+        if (!args) {
+            throw new Error(`No CodeCommitted event found`);
+        }
+        const privateKey = argv.privateKey
+            ? argv.privateKey
+            : await fetchSeasonKey(argv.dataUrl, args.season);
+
+       const code = decryptPlayerSubmission({
+            player: args.player,
+            seasonPrivateKey: privateKey,
+            codeHash: args.codeHash,
+            submission: args.submission,
+        });
+        console.log(code);
     },
 ).parse();
 
@@ -177,3 +215,52 @@ async function fetchJson<T = object>(
     }
     return await resp.json() as T;
 }
+
+const CODE_COMMITTED_ABI = {
+    "type": "event",
+    "name": "CodeCommitted",
+    "inputs": [
+      {
+        "name": "season",
+        "type": "uint32",
+        "indexed": true,
+        "internalType": "uint32"
+      },
+      {
+        "name": "player",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "codeHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "submission",
+        "type": "tuple",
+        "indexed": false,
+        "internalType": "struct EncryptedCodeSubmission",
+        "components": [
+          {
+            "name": "encryptedAesKey",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "encryptedCode",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "iv",
+            "type": "bytes12",
+            "internalType": "bytes12"
+          }
+        ]
+      }
+    ],
+    "anonymous": false
+  };
