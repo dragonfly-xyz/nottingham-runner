@@ -28,7 +28,7 @@ You can also pass in multiple addresses at once.
 ### Running tournaments
 
 You can run tournaments locally with the `run` command.
-For example, to run a tournament on season 0 with 3 brackets of 8 matches per player:
+For example, to run a tournament on season 0 with 3 brackets of 8 matches per player and 12 match workers:
 
 ```bash
 npm run cli -- run 0 -u 'https://us-central1-nottingham-420415.cloudfunctions.net/data' -w 12 -b 8 8 8 

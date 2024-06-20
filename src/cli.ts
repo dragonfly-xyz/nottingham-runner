@@ -25,11 +25,15 @@ yargs(process.argv.slice(2)).command(
         const addressToName = Object.assign({},
             ...players.map(p => ({ [p.address]: p.name })),
         );
+
+        const privateKey = argv.privateKey
+            ? argv.privateKey
+            : await fetchSeasonKey(argv.dataUrl, argv.season); 
         const playerCodes = await fetchPlayerCodes(
             argv.season,
             argv.dataUrl,
+            privateKey,
             players.map(p => p.address),
-            argv.privateKey,
         );
         for (const [address, path] of argv.player) {
             let code: Hex;
@@ -60,7 +64,7 @@ yargs(process.argv.slice(2)).command(
                 })),
             ),
             matchSeats: argv.seats,
-            seed: argv.seed,
+            seed: argv.seed ? argv.seed : privateKey,
         });
         await matchPool.finished();
         timeTaken = Date.now() - timeTaken;
@@ -81,8 +85,8 @@ yargs(process.argv.slice(2)).command(
         const codes = await fetchPlayerCodes(
             argv.season,
             argv.dataUrl,
-            argv.players,
             argv.privateKey,
+            argv.players,
         );
         for (const addr in codes) {
             console.log(`${addr}: ${codes[addr]}`);
@@ -99,29 +103,27 @@ interface ChainEvent {
     [field: string]: any;
 }
 
-export async function fetchPlayerCodes(
-    season: number,
-    dataUrl: string,
-    players?: Address[],
-    privateKey?: Hex,
-): Promise<PlayerCodes>
-{
+
+async function fetchSeasonKey(dataUrl: string, season: number): Promise<Hex> {
     const { events: seasonEvents } = await fetchJson<{ events: ChainEvent[]}>(
         new URL([dataUrl, 'indexed/seasons'].join('/')),
     );
-    if (!privateKey) {
-        for (const event of seasonEvents) {
-            if (event.eventName === 'SeasonRevealed') {
-                if (event.season === season) {
-                    privateKey = event.privateKey;
-                    break;
-                }
+    for (const event of seasonEvents) {
+        if (event.eventName === 'SeasonRevealed') {
+            if (event.season === season) {
+                return event.privateKey;
             }
         }
-        if (!privateKey) {
-            throw new Error(`Season ${season} has not yet been revealed.`);
-        }
     }
+    throw new Error(`Season has not yet been revealed.`);
+}
+
+async function fetchPlayerCodes(
+    season: number,
+    dataUrl: string,
+    privateKey: Hex,
+    players?: Address[],
+): Promise<PlayerCodes> {
     const { events: codeEvents } = await fetchJson<{ events: ChainEvent[] }>(
         new URL([dataUrl, 'indexed/code'].join('/')),
         { players, season },
