@@ -12,7 +12,7 @@ npm i -D && npm run build
 
 ## CLI Commands
 
-Both CLI commands require either explicitly passing in a season's private key or being run against seasons that have already been revealed.
+CLI commands require either explicitly passing in a season's private key or being run against seasons that have already been revealed.
 
 ### Fetching bytecode
 
