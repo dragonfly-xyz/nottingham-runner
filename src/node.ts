@@ -12,7 +12,7 @@ import { env } from 'process';
 import crypto from 'crypto';
 
 const BLOCK_GAS_LIMIT = 32e9;
-const MAX_CODE_SIZE = 0x8000;
+export const MAX_CODE_SIZE = 0x8000;
 
 export interface NodeInfo {
     blockGasLimit: number;
@@ -33,7 +33,7 @@ export class EvmNode {
                 '--port', port.toString(),
                 '--gas-limit', BLOCK_GAS_LIMIT.toString(),
                 '--gas-price', '0',
-                '--code-size-limit', MAX_CODE_SIZE.toString(),
+                '--code-size-limit', (MAX_CODE_SIZE * 5).toString(),
                 '--base-fee', '0',
                 '--hardfork', 'cancun',
                 '--silent',
@@ -65,7 +65,7 @@ export class EvmNode {
             `ws://127.0.0.1:${port}`,
             {
                 timeout: 120e3,
-                retryCount: 1,
+                retryCount: 2,
                 retryDelay: 500,
             },
         );

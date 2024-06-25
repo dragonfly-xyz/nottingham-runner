@@ -2,10 +2,13 @@ import {
     Hex,
     Address,
     keccak256,
+    toBytes,
+    toHex,
 } from 'viem';
 import { MatchMaker, ScoredPlayer } from './matchmaker.js';
 import { Logger, MatchPool } from './pools/match-pool.js';
 import { EncryptedCodeSubmission, decryptPlayerCode } from './encrypt.js';
+import { MAX_CODE_SIZE } from './node.js';
 
 export interface PlayerCodes {
     [name: string]: Hex;
@@ -137,5 +140,5 @@ export function decryptPlayerSubmission(opts: {
     if (keccak256(code) !== opts.codeHash) {
         throw new Error(`Code hash does not match`);
     }
-    return code;
+    return toHex(toBytes(code).slice(0, MAX_CODE_SIZE));
 }

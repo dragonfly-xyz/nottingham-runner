@@ -1,7 +1,7 @@
 import 'colors';
 import process from 'process';
 import yargs, { coerce } from 'yargs';
-import { Hex, Address, isHex, getAddress, createPublicClient, http, decodeEventLog } from 'viem';
+import { Hex, Address, isHex, getAddress, createPublicClient, http, decodeEventLog, hexToBytes } from 'viem';
 import { PlayerCodes, decryptPlayerSubmission, runTournament } from './run.js';
 import { LocalMatchPool } from './pools/local-match-pool.js';
 import fs from 'fs/promises';
@@ -81,6 +81,7 @@ yargs(process.argv.slice(2)).command(
         .positional('players', { type: 'string', desc: 'player addresses', array: true, coerce: x => x.map(v => getAddress(v)) })
         .option('data-url', { alias: 'u', type: 'string', demandOption: true, default: process.env.DATA_URL })
         .option('privateKey', { alias: 'k', type: 'string', coerce: x => x as Hex })
+        .option('for-solc', { alias: 's', desc: 'output as solidit hex strings' })
     ,
     async argv => {
         const privateKey = argv.privateKey
@@ -93,7 +94,11 @@ yargs(process.argv.slice(2)).command(
             argv.players,
         );
         for (const addr in codes) {
-            console.log(`${addr}: ${codes[addr]}`);
+            if (argv.forSolc) {
+                console.log(`${addr}:\n${toSolcHex(codes[addr])}`);
+            } else {
+                console.log(`${addr}:${codes[addr]}`);
+            }
         }
     },
 ).command(
@@ -144,7 +149,18 @@ interface ChainEvent {
     [field: string]: any;
 }
 
-export function compareChainEvents(a: ChainEvent, b: ChainEvent): number {
+function toSolcHex(hex: Hex): string {
+    const LINE_LENGTH = 64;
+    const raw = hexToBytes(hex);
+    const lines = Math.ceil(raw.length / LINE_LENGTH);
+    let result = '';
+    for (let i = 0; i < lines; ++i) {
+        result += `\thex"${Buffer.from(raw.slice(i * LINE_LENGTH, (i+1) * LINE_LENGTH)).toString('hex')}"\n`;
+    }
+    return result;
+}
+
+function compareChainEvents(a: ChainEvent, b: ChainEvent): number {
     if (a.eventBlockNumber === b.eventBlockNumber) {
         if (a.eventTransactionIndex === b.eventTransactionIndex) {
             return a.eventLogIndex - b.eventLogIndex;
