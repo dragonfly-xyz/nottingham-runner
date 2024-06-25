@@ -28,6 +28,7 @@ interface PlayerBundleEventParam {
 
 type GameCreatedEventArgs = { game: Address; };
 type CreatePlayerFailedEventArgs = { playerIdx: Address; };
+type MarketInitializedEventArgs = { reserves: bigint[]; };
 type RoundPlayedEventArgs = { round: number; };
 type GameOverEventArgs = { rounds: number; winnerIdx: number; };
 type PlayerBlockUsageGasUsageEventArgs = { builderIdx: number; gasUsed: number; };
@@ -141,6 +142,12 @@ export class MatchJob implements NodeJob<MatchResult> {
                         this._logger('create_player_failed', { player: this._playerIdsByIdx[playerIdx] });
                     }
                 } as LogEventHandler<CreatePlayerFailedEventArgs>,
+                {
+                    event: EVENT_BY_NAME.MarketInitialized,
+                    handler: ({ args: { reserves }}) => {
+                        this._logger('market_initialized', { reserves: reserves.map(r => Number(r)) });
+                    }
+                } as LogEventHandler<MarketInitializedEventArgs>,
             );
             if (!this._gameAddress) {
                 throw new Error(`Failed to create game.`);
