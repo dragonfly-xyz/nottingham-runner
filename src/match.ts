@@ -40,6 +40,7 @@ type BlockBidEventArgs = { builderIdx: number; bid: bigint };
 type BlockBuiltEventArgs = { round: number; builderIdx: number; bid: bigint };
 type EmptyBlockEventArgs = { round: number; };
 type SwapEventArgs = { playerIdx: number; fromAssetIdx: number; toAssetIdx: number; fromAmount: bigint; toAmount: bigint; };
+type LeakedEventArgs = { assetIdx: number; assetAmount: bigint; };
 type BundleSettledEventArgs = { playerIdx: number; success: boolean; bundle: PlayerBundleEventParam };
 type BuildPlayerBlockFailedEventArgs = { builderIdx: number; data: Hex };
 
@@ -223,6 +224,12 @@ export class MatchJob implements NodeJob<MatchResult> {
                     });
                 },
             } as LogEventHandler<SwapEventArgs>,
+            {
+                event: EVENT_BY_NAME.Leaked,
+                handler: ({ args: { assetIdx, assetAmount } }) => {
+                    this._logger('leaked', { assetIdx, assetAmount });
+                },
+            } as LogEventHandler<LeakedEventArgs>,
             {
                 event: EVENT_BY_NAME.BundleSettled,
                 handler: ({ args: { playerIdx, success, bundle } }) => {
