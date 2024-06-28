@@ -168,7 +168,7 @@ export class MatchJob implements NodeJob<MatchResult> {
                 address: this._gameAddress!,
                 functionName: 'playRound',
                 args: [],
-                gasLimit: this._gasLimit!,
+                gas: this._gasLimit!,
                 gasPrice: 0,
             }),
             RECEIPT_POLLING_INTERVAL,

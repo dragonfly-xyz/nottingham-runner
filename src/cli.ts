@@ -18,11 +18,16 @@ yargs(process.argv.slice(2)).command(
         .option('workers', { alias: 'w', type: 'number', default: 8 })
         .option('seats', { alias: 'S', type: 'number', default: 4 })
         .option('player', { alias: 'p', type: 'string', array: true, coerce: x => x.map(s => s.split(':')) as Array<[Address, string]>, default: [] })
+        .option('only', { alias: 'o', type: 'string', array: true, coerce: x => x.map(v => getAddress(v)), default: [] })
     ,
     async argv => {
-        const players = await fetchJson<Array<{name: string; address: Address;}>>(
+        let players = await fetchJson<Array<{name: string; address: Address;}>>(
             new URL([argv.dataUrl, 'players'].join('/')),
         );
+        if (argv.only) {
+            players = players.filter(p => argv.only.includes(p.address));
+        }
+
         const addressToName = Object.assign({},
             ...players.map(p => ({ [p.address]: p.name })),
         );
