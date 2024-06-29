@@ -1,11 +1,10 @@
 import 'colors';
 import process from 'process';
-import yargs, { coerce } from 'yargs';
+import yargs from 'yargs';
 import { Hex, Address, isHex, getAddress, createPublicClient, http, decodeEventLog, hexToBytes } from 'viem';
 import { PlayerCodes, decryptPlayerSubmission, runTournament } from './run.js';
 import { LocalMatchPool } from './pools/local-match-pool.js';
 import fs from 'fs/promises';
-import { EncryptedCodeSubmission } from './encrypt.js';
 
 yargs(process.argv.slice(2)).command(
     'run <season>', 'run a tournament for a season',
@@ -24,7 +23,7 @@ yargs(process.argv.slice(2)).command(
         let players = await fetchJson<Array<{name: string; address: Address;}>>(
             new URL([argv.dataUrl, 'players'].join('/')),
         );
-        if (argv.only) {
+        if (argv.only?.length) {
             players = players.filter(p => argv.only.includes(p.address));
         }
 
